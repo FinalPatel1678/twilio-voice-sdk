@@ -760,6 +760,15 @@ const ScreenDialer = () => {
         );
     };
 
+    const removeNumberFromQueue = (index: number) => {
+        // During auto-dial, only allow removal of numbers that haven't been processed yet
+        if (autoDialState.isActive && index <= autoDialState.currentIndex) {
+            return;
+        }
+
+        setTestNumbers(prev => prev.filter((_, i) => i !== index));
+    };
+
     return (
         <div className="min-h-screen bg-gray-100 p-4">
             <div className="max-w-6xl mx-auto space-y-4">
@@ -926,7 +935,8 @@ const ScreenDialer = () => {
                                             <th className="py-2 px-3">#</th>
                                             <th className="py-2 px-3">Number</th>
                                             <th className="py-2 px-3">Status</th>
-                                            <th className="py-2 px-3">Last Attempt</th>
+                                            <th className="py-2 px-3">Attempt</th>
+                                            <th className="py-2 px-3">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
@@ -944,28 +954,26 @@ const ScreenDialer = () => {
                                                     {renderCallStatus(item, index)}
                                                 </td>
                                                 <td className="py-2 px-3">
-                                                    {item.attempt && (
-                                                        <div className="space-y-1">
-                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                                                                ${item.attempt.status === 'success' ? 'bg-green-100 text-green-800' :
-                                                                    item.attempt.status === 'voicemail' ? 'bg-yellow-100 text-yellow-800' :
-                                                                        item.attempt.status === 'no-answer' ? 'bg-gray-100 text-gray-800' :
-                                                                            item.attempt.status === 'busy' ? 'bg-orange-100 text-orange-800' :
-                                                                                'bg-red-100 text-red-800'}`}>
-                                                                {item.attempt.status === 'success' ? 'Human Answer' :
-                                                                    item.attempt.status === 'voicemail' ? 'Voicemail' :
-                                                                        item.attempt.status === 'no-answer' ? 'No Answer' :
-                                                                            item.attempt.status === 'busy' ? 'Busy' :
-                                                                                'Failed'}
-                                                                {item.attempt.duration && ` (${Math.round(item.attempt.duration / 1000)}s)`}
-                                                            </span>
-                                                            {item.attempt.error && (
-                                                                <span className="block text-xs text-red-500">
-                                                                    {item.attempt.error}
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                    {item.attempt?.timestamp && (
+                                                        <span className="text-gray-500">
+                                                            {new Date(item.attempt.timestamp).toLocaleTimeString()}
+                                                        </span>
                                                     )}
+                                                </td>
+                                                <td className="py-2 px-3">
+                                                    <div className="flex items-center space-x-2">
+                                                        {/* Remove button */}
+                                                        <button
+                                                            onClick={() => removeNumberFromQueue(index)}
+                                                            disabled={autoDialState.isActive && index <= autoDialState.currentIndex}
+                                                            className="p-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                                            title={autoDialState.isActive && index <= autoDialState.currentIndex
+                                                                ? "Cannot remove number during auto-dial"
+                                                                : "Remove number"}
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
