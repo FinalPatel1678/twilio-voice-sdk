@@ -796,59 +796,89 @@ const ScreenDialer = () => {
 
     return (
         <div className="min-h-screen bg-gray-100 p-4">
-            <div className="max-w-6xl mx-auto space-y-4">
-                {/* Error Displays */}
-                {errors.device && (
-                    <ErrorDisplay
-                        message={errors.device}
-                        type="error"
-                        onDismiss={() => dismissError('device')}
-                    />
-                )}
-                {errors.validation && (
-                    <ErrorDisplay
-                        message={errors.validation}
-                        type="warning"
-                        onDismiss={() => dismissError('validation')}
-                    />
-                )}
-                {errors.call && (
-                    <ErrorDisplay
-                        message={errors.call}
-                        type="error"
-                        onDismiss={() => dismissError('call')}
-                    />
-                )}
-
-                {/* Header with Status */}
-                <div className="bg-white rounded-lg shadow-sm p-3">
+            <div className="max-w-7xl mx-auto space-y-4">
+                {/* Status Bar */}
+                <div className="bg-white rounded-lg shadow-sm p-4">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className={`w-2.5 h-2.5 rounded-full ${getStateColor(userState)}`} />
-                            <span className="text-base font-medium text-gray-700">{userState}</span>
+                        <div className="flex items-center space-x-4">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${getStateColor(userState)}`} />
+                                <span className="text-lg font-medium text-gray-700">{userState}</span>
+                            </div>
+                            {activeCall && (
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-gray-500">Current call:</span>
+                                    <span className="font-mono text-lg">{phoneNumber}</span>
+                                </div>
+                            )}
                         </div>
                         {activeCall && (
-                            <div className="text-base font-semibold text-gray-700">
-                                {formatElapsedTime(elapsedTime)}
+                            <div className="flex items-center space-x-3">
+                                <div className="text-lg font-mono bg-gray-100 px-3 py-1 rounded-md">
+                                    {formatElapsedTime(elapsedTime)}
+                                </div>
+                                <button
+                                    onClick={toggleMute}
+                                    className={`p-2.5 rounded-full transition-colors ${isMuted ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-600'
+                                        }`}
+                                >
+                                    {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                                </button>
                             </div>
                         )}
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {/* Left Panel - Dialer */}
-                    <div className="bg-white rounded-lg shadow-sm p-4">
-                        <h2 className="text-lg font-semibold mb-3">Dialer</h2>
-                        <input
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            value={phoneNumber}
-                            onChange={(e) => setPhoneNumber(e.target.value)}
-                            placeholder={isDeviceReady ? "Enter phone number" : "Initializing..."}
-                            disabled={!isDeviceReady || !!activeCall || isLoading}
-                        />
+                {/* Error Displays */}
+                {(errors.device || errors.validation || errors.call || errorMessage) && (
+                    <div className="space-y-2">
+                        {errors.device && (
+                            <ErrorDisplay
+                                message={errors.device}
+                                type="error"
+                                onDismiss={() => dismissError('device')}
+                            />
+                        )}
+                        {errors.validation && (
+                            <ErrorDisplay
+                                message={errors.validation}
+                                type="warning"
+                                onDismiss={() => dismissError('validation')}
+                            />
+                        )}
+                        {errors.call && (
+                            <ErrorDisplay
+                                message={errors.call}
+                                type="error"
+                                onDismiss={() => dismissError('call')}
+                            />
+                        )}
+                        {errorMessage && (
+                            <ErrorDisplay
+                                message={errorMessage}
+                                type="error"
+                                onDismiss={() => setErrorMessage('')}
+                            />
+                        )}
+                    </div>
+                )}
 
-                        {!activeCall ? (
-                            <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-12 gap-4">
+                    {/* Left Panel - Dialer */}
+                    <div className="col-span-12 lg:col-span-4 bg-white rounded-lg shadow-sm">
+                        <div className="p-4 border-b">
+                            <h2 className="text-lg font-semibold">Manual Dialer</h2>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <input
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                value={phoneNumber}
+                                onChange={(e) => setPhoneNumber(e.target.value)}
+                                placeholder={isDeviceReady ? "Enter phone number" : "Initializing..."}
+                                disabled={!isDeviceReady || !!activeCall || isLoading}
+                            />
+
+                            <div className="grid grid-cols-3 gap-3">
                                 {numberList.map((value) => (
                                     <button
                                         key={value}
@@ -861,148 +891,119 @@ const ScreenDialer = () => {
                                             }
                                         }}
                                         disabled={!isDeviceReady || !!activeCall || isLoading}
-                                        className="h-10 rounded-md bg-gray-50 hover:bg-gray-100 text-gray-700 text-base font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="h-12 rounded-md bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         {value}
                                     </button>
                                 ))}
                             </div>
-                        ) : (
-                            <div className="mt-3 flex justify-center gap-3">
-                                <button
-                                    onClick={toggleMute}
-                                    className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-600'}`}
-                                >
-                                    {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                                </button>
-                            </div>
-                        )}
 
-                        <button
-                            onClick={activeCall ? handleHangUp : handleCall}
-                            disabled={
-                                !isDeviceReady ||
-                                isLoading ||
-                                (!phoneNumber && !activeCall) ||
-                                (autoDialState.isActive && !activeCall) ||
-                                callDetailLoading !== null  // Add this condition
-                            }
-                            className={`mt-4 w-full py-2 rounded-lg font-medium text-white text-base transition-colors
-                                ${activeCall ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}
-                                disabled:opacity-50 disabled:cursor-not-allowed`}
-                        >
-                            {isLoading ? 'Connecting...' : 
-                             callDetailLoading ? 'Processing...' :  // Add this condition
-                             activeCall ? 'End Call' : 'Call'}
-                        </button>
-
-                        {errorMessage && (
-                            <div className="mt-2 text-xs text-red-500 text-center">{errorMessage}</div>
-                        )}
-                    </div>
-
-                    {/* Middle Panel - Auto Dial Controls */}
-                    <div className="bg-white rounded-lg shadow-sm p-4">
-                        <h2 className="text-lg font-semibold mb-3">Auto-Dial Controls</h2>
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                                <div className="text-sm font-medium">
-                                    Progress: {autoDialState.currentIndex}/{testNumbers.length}
-                                </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={startAutoDial}
-                                        disabled={
-                                            !isDeviceReady ||
-                                            autoDialState.isActive ||
-                                            !!activeCall ||  // Add this condition
-                                            testNumbers.length === 0  // Only check if there are numbers to dial
-                                        }
-                                        className="px-3 py-1.5 bg-green-500 text-white rounded-md text-sm hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-green-500 transition-colors"
-                                    >
-                                        Start
-                                    </button>
-                                    {autoDialState.isActive && (
-                                        <>
-                                            {autoDialState.isPaused ? (
-                                                <button
-                                                    onClick={resumeAutoDial}
-                                                    className="px-3 py-1.5 bg-blue-500 text-white rounded-md text-sm transition-colors"
-                                                >
-                                                    Resume
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={pauseAutoDial}
-                                                    className="px-3 py-1.5 bg-yellow-500 text-white rounded-md text-sm transition-colors"
-                                                >
-                                                    Pause
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={stopAutoDial}
-                                                className="px-3 py-1.5 bg-red-500 text-white rounded-md text-sm transition-colors"
-                                            >
-                                                Stop
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
+                            <button
+                                onClick={activeCall ? handleHangUp : handleCall}
+                                disabled={!isDeviceReady || isLoading || (!phoneNumber && !activeCall)}
+                                className={`w-full py-3 rounded-lg font-medium text-white text-base transition-colors
+                                    ${activeCall ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}
+                                    disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                                {isLoading ? 'Connecting...' : activeCall ? 'End Call' : 'Call'}
+                            </button>
                         </div>
                     </div>
 
-                    {/* Right Panel - Numbers List */}
-                    <div className="bg-white rounded-lg shadow-sm p-4">
-                        <h2 className="text-lg font-semibold mb-3">Call Queue</h2>
-                        <div className="overflow-hidden">
-                            <div className="max-h-[400px] overflow-y-auto">
+                    {/* Middle Panel - Auto Dial Controls */}
+                    <div className="col-span-12 lg:col-span-8 space-y-4">
+                        <div className="bg-white rounded-lg shadow-sm">
+                            <div className="p-4 border-b">
+                                <h2 className="text-lg font-semibold">Auto-Dial Controls</h2>
+                            </div>
+                            <div className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-1">
+                                        <div className="text-sm font-medium text-gray-500">Progress</div>
+                                        <div className="text-2xl font-semibold">
+                                            {autoDialState.currentIndex}/{testNumbers.length}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={startAutoDial}
+                                            disabled={!isDeviceReady || autoDialState.isActive || !!activeCall || testNumbers.length === 0}
+                                            className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-green-500 transition-colors"
+                                        >
+                                            Start Auto-Dial
+                                        </button>
+                                        {autoDialState.isActive && (
+                                            <>
+                                                {autoDialState.isPaused ? (
+                                                    <button
+                                                        onClick={resumeAutoDial}
+                                                        className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 transition-colors"
+                                                    >
+                                                        Resume
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={pauseAutoDial}
+                                                        className="px-4 py-2 bg-yellow-500 text-white rounded-md text-sm font-medium hover:bg-yellow-600 transition-colors"
+                                                    >
+                                                        Pause
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={stopAutoDial}
+                                                    className="px-4 py-2 bg-red-500 text-white rounded-md text-sm font-medium hover:bg-red-600 transition-colors"
+                                                >
+                                                    Stop
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Call Queue Table */}
+                        <div className="bg-white rounded-lg shadow-sm">
+                            <div className="p-4 border-b">
+                                <h2 className="text-lg font-semibold">Call Queue</h2>
+                            </div>
+                            <div className="overflow-x-auto">
                                 <table className="w-full">
-                                    <thead className="bg-gray-50">
-                                        <tr className="text-left text-xs font-medium text-gray-500">
-                                            <th className="py-2 px-3">#</th>
-                                            <th className="py-2 px-3">Number</th>
-                                            <th className="py-2 px-3">Status</th>
-                                            <th className="py-2 px-3">Attempt</th>
-                                            <th className="py-2 px-3">Actions</th>
+                                    <thead className="bg-gray-50 border-b border-gray-200">
+                                        <tr>
+                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">#</th>
+                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Number</th>
+                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Status</th>
+                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Attempt</th>
+                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
                                         {testNumbers.map((item, index) => (
                                             <tr
                                                 key={item.number}
-                                                className={`text-xs ${index === autoDialState.currentIndex
-                                                    ? 'bg-blue-50'
-                                                    : 'hover:bg-gray-50'
+                                                className={`${index === autoDialState.currentIndex ? 'bg-blue-50' : 'hover:bg-gray-50'
                                                     }`}
                                             >
-                                                <td className="py-2 px-3">{index + 1}</td>
-                                                <td className="py-2 px-3">{item.number}</td>
-                                                <td className="py-2 px-3">
-                                                    {renderCallStatus(item, index)}
-                                                </td>
-                                                <td className="py-2 px-3">
+                                                <td className="py-3 px-4 text-sm">{index + 1}</td>
+                                                <td className="py-3 px-4 text-sm font-medium">{item.number}</td>
+                                                <td className="py-3 px-4">{renderCallStatus(item, index)}</td>
+                                                <td className="py-3 px-4">
                                                     {item.attempt && (
-                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.attempt.status)}`}>
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.attempt.status)}`}>
                                                             {item.attempt.status}
                                                             {item.attempt.duration && ` (${Math.round(item.attempt.duration / 1000)}s)`}
                                                         </span>
                                                     )}
                                                 </td>
-                                                <td className="py-2 px-3">
-                                                    <div className="flex items-center space-x-2">
-                                                        {/* Remove button */}
-                                                        <button
-                                                            onClick={() => removeNumberFromQueue(index)}
-                                                            disabled={autoDialState.isActive && index <= autoDialState.currentIndex}
-                                                            className="p-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
-                                                            title={autoDialState.isActive && index <= autoDialState.currentIndex
-                                                                ? "Cannot remove number during auto-dial"
-                                                                : "Remove number"}
-                                                        >
-                                                            <X className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
+                                                <td className="py-3 px-4">
+                                                    <button
+                                                        onClick={() => removeNumberFromQueue(index)}
+                                                        disabled={autoDialState.isActive && index <= autoDialState.currentIndex}
+                                                        className="p-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -1014,27 +1015,29 @@ const ScreenDialer = () => {
                 </div>
             </div>
 
-            {/* Add Modal */}
-            {showSummaryModal && completedCallDetails && (
-                <div className="fixed inset-0 z-50 overflow-y-auto">
-                    <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
-                    <div className="flex min-h-full items-center justify-center p-4">
-                        <CallSummaryModal
-                            isOpen={showSummaryModal}
-                            callDetails={completedCallDetails}
-                            onClose={() => handleCallSummarySubmit({
-                                notes: '', outcome: 'no-answer',
-                                phoneNumber: '',
-                                duration: 0,
-                                timestamp: 0,
-                                followUpRequired: false
-                            })} // Handle close same as submit
-                            onSubmit={handleCallSummarySubmit}
-                        />
+
+            {
+                showSummaryModal && completedCallDetails && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto">
+                        <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
+                        <div className="flex min-h-full items-center justify-center p-4">
+                            <CallSummaryModal
+                                isOpen={showSummaryModal}
+                                callDetails={completedCallDetails}
+                                onClose={() => handleCallSummarySubmit({
+                                    notes: '', outcome: 'no-answer',
+                                    phoneNumber: '',
+                                    duration: 0,
+                                    timestamp: 0,
+                                    followUpRequired: false
+                                })} // Handle close same as submit
+                                onSubmit={handleCallSummarySubmit}
+                            />
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 
