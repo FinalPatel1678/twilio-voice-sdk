@@ -1,10 +1,10 @@
 import React from 'react';
-import FloatingDialer from './components/FloatingDialer';
+import ScreenDialer from './components/ScreenDialer';
 
 const App: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <FloatingDialer />
+    <div className="bg-gray-100">
+      <ScreenDialer />
     </div>
   );
 };
