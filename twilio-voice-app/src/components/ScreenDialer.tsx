@@ -884,13 +884,16 @@ const ScreenDialer = () => {
                                 !isDeviceReady ||
                                 isLoading ||
                                 (!phoneNumber && !activeCall) ||
-                                (autoDialState.isActive && !activeCall)
+                                (autoDialState.isActive && !activeCall) ||
+                                callDetailLoading !== null  // Add this condition
                             }
                             className={`mt-4 w-full py-2 rounded-lg font-medium text-white text-base transition-colors
                                 ${activeCall ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}
                                 disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
-                            {isLoading ? 'Connecting...' : activeCall ? 'End Call' : 'Call'}
+                            {isLoading ? 'Connecting...' : 
+                             callDetailLoading ? 'Processing...' :  // Add this condition
+                             activeCall ? 'End Call' : 'Call'}
                         </button>
 
                         {errorMessage && (
