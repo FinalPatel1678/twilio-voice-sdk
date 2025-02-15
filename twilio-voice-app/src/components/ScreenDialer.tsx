@@ -358,7 +358,7 @@ const ScreenDialer = () => {
         if (activeCall) {
             try {
                 activeCall.disconnect();
-                // Only update the current number's status
+                // Update the current number's status
                 if (autoDialState.isActive) {
                     const currentIndex = autoDialState.currentIndex;
                     setTestNumbers(prev => {
@@ -366,13 +366,11 @@ const ScreenDialer = () => {
                         if (currentIndex < updated.length) {
                             updated[currentIndex] = {
                                 ...updated[currentIndex],
-                                status: 'failed',
-                                attempt:
-                                {
+                                status: 'completed',
+                                attempt: {
                                     timestamp: Date.now(),
                                     duration: callStartTime ? Date.now() - callStartTime : 0,
-                                    status: 'failed',
-                                    error: 'Manually disconnected'
+                                    status: 'success'
                                 }
                             };
                         }
