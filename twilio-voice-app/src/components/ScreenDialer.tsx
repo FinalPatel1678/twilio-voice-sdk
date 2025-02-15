@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Mic, MicOff } from 'lucide-react';
 import { Call, Device } from '@twilio/voice-sdk';
-import { getAccessToken } from '../services/twilioService';
+import { fetchCallDetails, getAccessToken } from '../services/twilioService';
 import LocalStorageManager from '../services/localStorageManager';
 import usePersistor from '../hooks/usePersistor';
 import ErrorDisplay from './ErrorDisplay';
 import CallSummaryModal from './CallSummaryModal';
+import LoadingSpinner from './LoadingSpinner';
 import type { CallSummaryData } from './CallSummaryModal';
 
 const USER_STATE = {
@@ -22,10 +23,11 @@ const localStorageManager = new LocalStorageManager();
 interface CallAttempt {
     timestamp: number;
     duration?: number;
-    status: 'success' | 'failed';
+    status: 'success' | 'failed' | 'voicemail' | 'no-answer' | 'busy' | 'error';
     error?: string;
 }
 
+// Simplify TestNumber interface
 interface TestNumber {
     number: string;
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
@@ -39,11 +41,6 @@ interface AutoDialState {
     isPaused: boolean;
     currentIndex: number;
 }
-
-// Add retry configuration
-const AUTO_DIAL_CONFIG = {
-    TRANSITION_DELAY: 1000,  // Delay between calls for UI updates (1 second)
-};
 
 // Enhance the logger
 const logger = {
@@ -89,14 +86,19 @@ const ScreenDialer = () => {
     const [isOnCall, setIsOnCall] = usePersistor<boolean>('isOnCall', false, localStorageManager);
 
     // Enhanced states for better error handling
+    // Update initial test numbers state without retry
     const [testNumbers, setTestNumbers] = useState<TestNumber[]>([
         {
+            number: '+917201898644',
+            status: 'pending'
+        },
+        {
             number: '+917359665133',
-            status: 'pending',
+            status: 'pending'
         },
         {
             number: '+919727365133',
-            status: 'pending',
+            status: 'pending'
         },
     ]);
 
@@ -123,6 +125,11 @@ const ScreenDialer = () => {
 
     // Add this state to track if a call is being initiated
     const [isInitiatingCall, setIsInitiatingCall] = useState(false);
+
+    const [callDetailLoading, setCallDetailLoading] = useState<{
+        index: number;
+        status: string;
+    } | null>(null);
 
     useEffect(() => {
         initializeDevice();
@@ -240,27 +247,9 @@ const ScreenDialer = () => {
     // Modify handleCallDisconnect to trigger summary modal for manual calls
     const handleCallDisconnect = () => {
         if (activeCall) {
-            const duration = callStartTime ? Date.now() - callStartTime : 0;
-            const currentNumber = phoneNumber;
-
             activeCall.removeAllListeners();
-            setActiveCall(null);
-            setUserState(USER_STATE.READY);
-            setCallStartTime(null);
-            setIsOnCall(false);
-            setErrorMessage('');
-            setIsMuted(false);
-
-            // Only show summary modal if call was actually connected
-            if (duration > 0 && !autoDialState.isActive) {
-                setCompletedCallDetails({
-                    phoneNumber: currentNumber,
-                    duration,
-                    timestamp: Date.now()
-                });
-                setShowSummaryModal(true);
-            }
         }
+        resetCallStates()
     };
 
     const handleDeviceError = async (error: { code: number; message?: string }) => {
@@ -357,10 +346,11 @@ const ScreenDialer = () => {
                     setIsMuted(isMuted);
                 });
 
-                call.on('disconnect', () => {
+                call.on('disconnect', async () => {
+                    const callSid = call.parameters.CallSid;
                     const duration = Date.now() - startTime;
                     logger.info('Call disconnected', {
-                        callSid: call.parameters.CallSid,
+                        callSid: callSid,
                         duration,
                         finalStatus: call.status(),
                         autoDialState: {
@@ -369,12 +359,12 @@ const ScreenDialer = () => {
                         }
                     });
 
+                    // Don't reset call states immediately for auto-dial
+                    if (options?.isAutoDial && options.index !== undefined) {
+                        await handleCallSuccess(callSid, options.index, duration);
+                    }
                     handleCallDisconnect();
 
-                    if (options?.isAutoDial &&
-                        options.index !== undefined) {
-                        handleCallSuccess(options.index, duration);
-                    }
                 });
 
                 call.on('error', (error) => {
@@ -450,32 +440,7 @@ const ScreenDialer = () => {
     // Modify handleHangUp to not trigger next auto-dial
     const handleHangUp = () => {
         if (activeCall) {
-            try {
-                activeCall.disconnect();
-                // Update the current number's status
-                if (autoDialState.isActive) {
-                    const currentIndex = autoDialState.currentIndex;
-                    setTestNumbers(prev => {
-                        const updated = [...prev];
-                        if (currentIndex < updated.length) {
-                            updated[currentIndex] = {
-                                ...updated[currentIndex],
-                                status: 'completed',
-                                attempt: {
-                                    timestamp: Date.now(),
-                                    duration: callStartTime ? Date.now() - callStartTime : 0,
-                                    status: 'success'
-                                }
-                            };
-                        }
-                        return updated;
-                    });
-                }
-            } catch (error) {
-                console.error('Error disconnecting call:', error);
-            }
-
-            handleCallDisconnect();
+            activeCall.disconnect();
         }
     };
 
@@ -515,36 +480,138 @@ const ScreenDialer = () => {
             return updated;
         });
 
-        // Short delay for UI update before moving to next number
-        await new Promise(resolve => setTimeout(resolve, AUTO_DIAL_CONFIG.TRANSITION_DELAY));
         setAutoDialState(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }));
     };
 
-    // Improved handleCallSuccess with better state management
-    // Modify handleCallSuccess to show modal
-    const handleCallSuccess = async (index: number, duration: number) => {
-        logger.info('Call completed successfully', { index, duration });
+    const resetCallStates = () => {
+        setActiveCall(null);
+        setUserState(USER_STATE.READY);
+        setCallStartTime(null);
+        setIsOnCall(false);
+        setErrorMessage('');
+        setIsMuted(false);
+        setPhoneNumber('');
+        setElapsedTime(0);
 
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+
+    const processNextAutoDialCall = () => {
+        const nextIndex = autoDialState.currentIndex + 1;
+        if (nextIndex >= testNumbers.length) {
+            stopAutoDial();
+        } else {
+            setAutoDialState(prev => ({
+                ...prev,
+                currentIndex: nextIndex
+            }));
+        }
+    };
+
+    const updateTestNumberStatus = (index: number, status: TestNumber['status'], attempt?: CallAttempt) => {
         setTestNumbers(prev => {
             const updated = [...prev];
             updated[index] = {
                 ...updated[index],
-                status: 'completed',
-                attempt: {
-                    timestamp: Date.now(),
-                    duration,
-                    status: 'success'
-                }
+                status,
+                attempt
             };
             return updated;
         });
+    };
 
-        setCompletedCallDetails({
-            phoneNumber: testNumbers[index].number,
+    const handleCallSuccess = async (callSid: string, index: number, duration: number) => {
+        logger.info('Call completed successfully', { index, duration });
+
+        const currentNumber = testNumbers[index].number;
+
+        // Set status to in-progress while fetching details
+        updateTestNumberStatus(index, 'in-progress', {
+            timestamp: Date.now(),
             duration,
-            timestamp: Date.now()
+            status: 'success', // temporary status
         });
-        setShowSummaryModal(true);
+
+        try {
+            if (callSid) {
+                setCallDetailLoading({
+                    index,
+                    status: 'Analyzing call details...'
+                });
+
+                // Add a loading state while fetching call details
+                setTestNumbers(prev => {
+                    const updated = [...prev];
+                    if (updated[index]) {
+                        updated[index] = {
+                            ...updated[index],
+                            status: 'in-progress',
+                            lastError: 'Analyzing call details...'
+                        };
+                    }
+                    return updated;
+                });
+
+                const callDetails = await fetchCallDetails(callSid);
+                setCallDetailLoading({
+                    index,
+                    status: 'Processing results...'
+                });
+
+                let callStatus: CallAttempt['status'] = 'success';
+
+                // Determine the call status based on Twilio's response
+                if (callDetails.status === 'no-answer') {
+                    callStatus = 'no-answer';
+                } else if (callDetails.status === 'busy') {
+                    callStatus = 'busy';
+                } else if (callDetails.answeredBy && callDetails.answeredBy.includes('machine')) {
+                    callStatus = 'voicemail';
+                }
+
+                // Update with final status after getting call details
+                updateTestNumberStatus(index, 'completed', {
+                    timestamp: Date.now(),
+                    duration,
+                    status: callStatus,
+                });
+
+                // Show summary modal for successful calls only
+                if (callStatus === 'success') {
+                    setCompletedCallDetails({
+                        phoneNumber: currentNumber,
+                        duration,
+                        timestamp: Date.now()
+                    });
+                    setShowSummaryModal(true);
+                } else {
+                    resetCallStates();
+                    if (autoDialState.isActive) {
+                        processNextAutoDialCall();
+                    }
+                }
+            }
+        } catch (error) {
+            logger.error('Error fetching call details:', error);
+
+            // Update with error status
+            updateTestNumberStatus(index, 'failed', {
+                timestamp: Date.now(),
+                duration,
+                status: 'error',
+                error: 'Failed to fetch call details'
+            });
+
+            resetCallStates();
+            if (autoDialState.isActive) {
+                processNextAutoDialCall();
+            }
+        } finally {
+            setCallDetailLoading(null);
+        }
     };
 
     // Enhanced auto-dial control functions
@@ -639,59 +706,16 @@ const ScreenDialer = () => {
         }
     }, [autoDialState.isActive, autoDialState.isPaused, autoDialState.currentIndex, device, isDeviceReady, activeCall, showSummaryModal]);
 
-    // // Call completion effect
-    // useEffect(() => {
-    //     if (!activeCall && autoDialState.isActive && !autoDialState.isPaused) {
-    //         const timeoutId = setTimeout(() => {
-    //             setAutoDialState(prev => {
-    //                 if (prev.currentIndex >= testNumbers.length - 1) {
-    //                     return { isActive: false, isPaused: false, currentIndex: 0 };
-    //                 }
-    //                 return { ...prev, currentIndex: prev.currentIndex + 1 };
-    //             });
-    //         }, AUTO_DIAL_CONFIG.TRANSITION_DELAY);
-
-    //         return () => clearTimeout(timeoutId);
-    //     }
-    // }, [activeCall, autoDialState.isActive, autoDialState.isPaused]);
-
     // Add new function to handle call summary submission
     const handleCallSummarySubmit = async (summaryData: CallSummaryData) => {
         try {
             logger.info('Saving call summary:', summaryData);
-
-            // Reset call-related states
-            setActiveCall(null);
-            setUserState(USER_STATE.READY);
-            setCallStartTime(null);
-            setIsOnCall(false);
-            setErrorMessage('');
-            setIsMuted(false);
-            setPhoneNumber('');
-            setElapsedTime(0);
-
-            // Clear timers
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-                timerRef.current = null;
-            }
-
-            // Close modal and proceed with auto-dial
+            resetCallStates();
             setShowSummaryModal(false);
             setCompletedCallDetails(null);
 
-            // Process next call in auto-dial sequence
             if (autoDialState.isActive) {
-                const nextIndex = autoDialState.currentIndex + 1;
-                if (nextIndex >= testNumbers.length) {
-                    // End auto-dial if we've completed all numbers
-                    stopAutoDial();
-                } else {
-                    setAutoDialState(prev => ({
-                        ...prev,
-                        currentIndex: nextIndex
-                    }));
-                }
+                processNextAutoDialCall();
             }
         } catch (error) {
             logger.error('Error saving call summary:', error);
@@ -714,6 +738,27 @@ const ScreenDialer = () => {
             });
         }
     }, [activeCall, autoDialState, isDeviceReady, testNumbers, userState]);
+
+    const renderCallStatus = (item: TestNumber, index: number) => {
+        if (callDetailLoading?.index === index) {
+            return (
+                <div className="flex items-center space-x-2">
+                    <LoadingSpinner size="small" />
+                    <span className="text-xs text-gray-600">{callDetailLoading.status}</span>
+                </div>
+            );
+        }
+
+        return (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                ${item.status === 'completed' ? 'bg-green-100 text-green-800' :
+                    item.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                        item.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'}`}>
+                {item.status}
+            </span>
+        );
+    };
 
     return (
         <div className="min-h-screen bg-gray-100 p-4">
@@ -795,12 +840,6 @@ const ScreenDialer = () => {
                                     className={`p-3 rounded-full transition-colors ${isMuted ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-600'}`}
                                 >
                                     {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                                </button>
-                                <button
-                                    onClick={handleHangUp}
-                                    className="p-3 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
-                                >
-                                    <X className="w-5 h-5" />
                                 </button>
                             </div>
                         )}
@@ -887,6 +926,7 @@ const ScreenDialer = () => {
                                             <th className="py-2 px-3">#</th>
                                             <th className="py-2 px-3">Number</th>
                                             <th className="py-2 px-3">Status</th>
+                                            <th className="py-2 px-3">Last Attempt</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100">
@@ -901,17 +941,30 @@ const ScreenDialer = () => {
                                                 <td className="py-2 px-3">{index + 1}</td>
                                                 <td className="py-2 px-3">{item.number}</td>
                                                 <td className="py-2 px-3">
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                                                        ${item.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                                            item.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                                                                item.status === 'failed' ? 'bg-red-100 text-red-800' :
-                                                                    'bg-gray-100 text-gray-800'}`}>
-                                                        {item.status}
-                                                    </span>
-                                                    {item.lastError && (
-                                                        <span className="ml-2 text-xs text-red-500">
-                                                            {item.lastError}
-                                                        </span>
+                                                    {renderCallStatus(item, index)}
+                                                </td>
+                                                <td className="py-2 px-3">
+                                                    {item.attempt && (
+                                                        <div className="space-y-1">
+                                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                                                ${item.attempt.status === 'success' ? 'bg-green-100 text-green-800' :
+                                                                    item.attempt.status === 'voicemail' ? 'bg-yellow-100 text-yellow-800' :
+                                                                        item.attempt.status === 'no-answer' ? 'bg-gray-100 text-gray-800' :
+                                                                            item.attempt.status === 'busy' ? 'bg-orange-100 text-orange-800' :
+                                                                                'bg-red-100 text-red-800'}`}>
+                                                                {item.attempt.status === 'success' ? 'Human Answer' :
+                                                                    item.attempt.status === 'voicemail' ? 'Voicemail' :
+                                                                        item.attempt.status === 'no-answer' ? 'No Answer' :
+                                                                            item.attempt.status === 'busy' ? 'Busy' :
+                                                                                'Failed'}
+                                                                {item.attempt.duration && ` (${Math.round(item.attempt.duration / 1000)}s)`}
+                                                            </span>
+                                                            {item.attempt.error && (
+                                                                <span className="block text-xs text-red-500">
+                                                                    {item.attempt.error}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </td>
                                             </tr>

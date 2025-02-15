@@ -108,7 +108,7 @@ app.post('/amd-webhook', async (req, res) => {
     case 'machine_end_other':
       // Machine detected - Leave a voicemail
       twiml.say("Hello, this is an important message for you. Please call us back at your earliest convenience.");
-      twiml.pause({ length: 1 });
+      // twiml.pause({ length: 1 });
       twiml.hangup();
 
       // Update the call with TwiML instructions
@@ -160,6 +160,32 @@ app.post('/action', async (req, res) => {
 
   res.type('text/xml');
   res.send(twiml.toString());
+});
+
+
+app.post('/fetch-call', async (req, res) => {
+  const { callSid } = req.body;
+
+  // Validate input
+  if (!callSid) {
+    return res.status(400).json({
+      success: false,
+      error: 'Call SID is required'
+    });
+  }
+
+  try {
+    const call = await client.calls.list({ parentCallSid: callSid, limit: 1, });
+    return res.json({
+      call: call[0]
+    });
+
+  } catch (error) {
+    console.error('Error fetching call:', error);
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to fetch call details'
+    });
+  }
 });
 
 // Start the server
