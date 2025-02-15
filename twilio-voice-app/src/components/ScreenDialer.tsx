@@ -19,12 +19,26 @@ const USER_STATE = {
 const numberList = [1, 2, 3, 4, 5, 6, 7, 8, 9, '+', 0, '⌫'];
 const localStorageManager = new LocalStorageManager();
 
-// Add new interfaces
+// Update CallAttempt interface with more detailed status
 interface CallAttempt {
     timestamp: number;
     duration?: number;
-    status: 'success' | 'failed' | 'voicemail' | 'no-answer' | 'busy' | 'error';
+    status:
+    | 'success'           // Call was answered by human and completed normally
+    | 'voicemail'        // Call was answered by voicemail/machine
+    | 'no-answer'        // Call rang but was not answered
+    | 'busy'            // Received busy signal
+    | 'failed'          // Technical failure during call
+    | 'canceled'        // Call was canceled before completion
+    | 'rejected'        // Call was rejected by recipient
+    | 'invalid-number'  // Number was invalid or not in service
+    | 'error';          // Generic error
     error?: string;
+    attempts?: number;      // Track retry attempts
+    callSid?: string;      // Store Twilio call SID
+    answerTime?: number;   // Time when call was answered
+    endTime?: number;      // Time when call ended
+    recordings?: string[]; // Any recording URLs
 }
 
 // Simplify TestNumber interface
@@ -524,16 +538,23 @@ const ScreenDialer = () => {
     };
 
     const handleCallSuccess = async (callSid: string, index: number, duration: number) => {
-        logger.info('Call completed successfully', { index, duration });
+        logger.info('Call completed successfully', { index, duration, callSid });
 
         const currentNumber = testNumbers[index].number;
+        const startTime = Date.now() - duration;
 
-        // Set status to in-progress while fetching details
-        updateTestNumberStatus(index, 'in-progress', {
-            timestamp: Date.now(),
+        // Set initial attempt data
+        const attempt: CallAttempt = {
+            timestamp: startTime,
             duration,
-            status: 'success', // temporary status
-        });
+            status: 'success',
+            callSid,
+            answerTime: startTime,
+            endTime: Date.now(),
+            attempts: 1
+        };
+
+        updateTestNumberStatus(index, 'in-progress', attempt);
 
         try {
             if (callSid) {
@@ -542,49 +563,38 @@ const ScreenDialer = () => {
                     status: 'Analyzing call details...'
                 });
 
-                // Add a loading state while fetching call details
-                setTestNumbers(prev => {
-                    const updated = [...prev];
-                    if (updated[index]) {
-                        updated[index] = {
-                            ...updated[index],
-                            status: 'in-progress',
-                            lastError: 'Analyzing call details...'
-                        };
-                    }
-                    return updated;
-                });
-
                 const callDetails = await fetchCallDetails(callSid);
-                setCallDetailLoading({
-                    index,
-                    status: 'Processing results...'
-                });
 
+                // Enhanced call status determination
                 let callStatus: CallAttempt['status'] = 'success';
-
-                // Determine the call status based on Twilio's response
                 if (callDetails.status === 'no-answer') {
                     callStatus = 'no-answer';
                 } else if (callDetails.status === 'busy') {
                     callStatus = 'busy';
-                } else if (callDetails.answeredBy && callDetails.answeredBy.includes('machine')) {
+                } else if (callDetails.status === 'failed') {
+                    callStatus = 'failed';
+                } else if (callDetails.status === 'canceled') {
+                    callStatus = 'canceled';
+                } else if (callDetails.answeredBy?.includes('machine')) {
                     callStatus = 'voicemail';
                 }
 
-                // Update with final status after getting call details
-                updateTestNumberStatus(index, 'completed', {
-                    timestamp: Date.now(),
-                    duration,
+                // Update attempt with final status and details
+                const finalAttempt: CallAttempt = {
+                    ...attempt,
                     status: callStatus,
-                });
+                    recordings: callDetails.recordings || [],
+                    error: callDetails.error,
+                };
 
-                // Show summary modal for successful calls only
+                updateTestNumberStatus(index, 'completed', finalAttempt);
+
+                // Show summary modal for successful human-answered calls only
                 if (callStatus === 'success') {
                     setCompletedCallDetails({
                         phoneNumber: currentNumber,
                         duration,
-                        timestamp: Date.now()
+                        timestamp: startTime
                     });
                     setShowSummaryModal(true);
                 } else {
@@ -596,14 +606,12 @@ const ScreenDialer = () => {
             }
         } catch (error) {
             logger.error('Error fetching call details:', error);
-
-            // Update with error status
-            updateTestNumberStatus(index, 'failed', {
-                timestamp: Date.now(),
-                duration,
+            const errorAttempt: CallAttempt = {
+                ...attempt,
                 status: 'error',
                 error: 'Failed to fetch call details'
-            });
+            };
+            updateTestNumberStatus(index, 'failed', errorAttempt);
 
             resetCallStates();
             if (autoDialState.isActive) {
@@ -749,6 +757,8 @@ const ScreenDialer = () => {
             );
         }
 
+
+
         return (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
                 ${item.status === 'completed' ? 'bg-green-100 text-green-800' :
@@ -758,6 +768,21 @@ const ScreenDialer = () => {
                 {item.status}
             </span>
         );
+    };
+
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'success': return 'bg-green-100 text-green-800';
+            case 'voicemail': return 'bg-yellow-100 text-yellow-800';
+            case 'no-answer': return 'bg-orange-100 text-orange-800';
+            case 'busy': return 'bg-purple-100 text-purple-800';
+            case 'failed': return 'bg-red-100 text-red-800';
+            case 'canceled': return 'bg-gray-100 text-gray-800';
+            case 'rejected': return 'bg-red-100 text-red-800';
+            case 'invalid-number': return 'bg-red-100 text-red-800';
+            case 'error': return 'bg-red-100 text-red-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
     };
 
     const removeNumberFromQueue = (index: number) => {
@@ -954,9 +979,10 @@ const ScreenDialer = () => {
                                                     {renderCallStatus(item, index)}
                                                 </td>
                                                 <td className="py-2 px-3">
-                                                    {item.attempt?.timestamp && (
-                                                        <span className="text-gray-500">
-                                                            {new Date(item.attempt.timestamp).toLocaleTimeString()}
+                                                    {item.attempt && (
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.attempt.status)}`}>
+                                                            {item.attempt.status}
+                                                            {item.attempt.duration && ` (${Math.round(item.attempt.duration / 1000)}s)`}
                                                         </span>
                                                     )}
                                                 </td>
