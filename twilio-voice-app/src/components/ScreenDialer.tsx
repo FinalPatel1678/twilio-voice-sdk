@@ -4,7 +4,7 @@ import { Call, Device } from '@twilio/voice-sdk';
 import { getAccessToken } from '../services/twilioService';
 import LocalStorageManager from '../services/localStorageManager';
 import usePersistor from '../hooks/usePersistor';
-import  ErrorDisplay  from './ErrorDisplay';
+import ErrorDisplay from './ErrorDisplay';
 
 const USER_STATE = {
     CONNECTING: "Connecting",
@@ -28,7 +28,7 @@ interface TestNumber {
     id: number;
     number: string;
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
-    attempts: CallAttempt[];
+    attempt?: CallAttempt;
     lastError?: string;
 }
 
@@ -39,9 +39,24 @@ interface AutoDialState {
     currentIndex: number;
 }
 
+// Add retry configuration
 const AUTO_DIAL_CONFIG = {
-    MIN_CALL_DURATION: 2000, // Minimum time to wait before next call (2 seconds)
-    TRANSITION_DELAY: 1000,  // Delay between calls for UI updates (1 second)  // Add retry delay
+    TRANSITION_DELAY: 1000,  // Delay between calls for UI updates (1 second)
+};
+
+const logger = {
+    info: (message: string, data?: any) => {
+        console.log(`[INFO] ${message}`, data || '');
+    },
+    error: (message: string, error?: any) => {
+        console.error(`[ERROR] ${message}`, error || '');
+    },
+    warn: (message: string, data?: any) => {
+        console.warn(`[WARN] ${message}`, data || '');
+    },
+    debug: (message: string, data?: any) => {
+        console.debug(`[DEBUG] ${message}`, data || '');
+    }
 };
 
 const ScreenDialer = () => {
@@ -70,19 +85,16 @@ const ScreenDialer = () => {
             id: 1,
             number: '+917359665133',
             status: 'pending',
-            attempts: []
         },
         {
             id: 2,
             number: '+919714882560',
             status: 'pending',
-            attempts: []
         },
         {
             id: 3,
             number: '+919727365133',
             status: 'pending',
-            attempts: []
         },
     ]);
 
@@ -98,9 +110,6 @@ const ScreenDialer = () => {
         call?: string;
         validation?: string;
     }>({});
-
-    // Add new state for better call tracking
-    const [currentCallId, setCurrentCallId] = useState<string | null>(null);
 
     useEffect(() => {
         initializeDevice();
@@ -132,27 +141,33 @@ const ScreenDialer = () => {
 
     const initializeDevice = async () => {
         if (!isInitialized) {
+            logger.info('Initializing Twilio device...');
             try {
                 setUserState(USER_STATE.CONNECTING);
                 setIsLoading(true);
                 const tokenData = await getAccessToken();
+                logger.debug('Access token received', { tokenReceived: !!tokenData?.token });
 
                 if (!tokenData?.token) {
                     throw new Error('Failed to get access token');
                 }
 
+                logger.info('Creating new Twilio device instance...');
                 const newDevice = new Device(tokenData.token, {
                     edge: 'ashburn',
                     closeProtection: 'You have an active call. Leaving or reloading this page will disconnect the call. Are you sure you want to continue?',
                     logLevel: 4,
                 });
 
+                logger.info('Device instance created successfully');
                 setDevice(newDevice);
                 setIsInitialized(true);
                 setIsDeviceReady(true);
                 setUserState(USER_STATE.READY);
 
                 newDevice.register();
+                logger.debug('Device registered');
+
                 newDevice.on('tokenWillExpire', async () => {
                     const token = await getAccessToken();
                     newDevice.updateToken(token.token);
@@ -162,6 +177,7 @@ const ScreenDialer = () => {
                 newDevice.on('disconnect', handleCallDisconnect);
                 newDevice.on('error', handleDeviceError);
             } catch (error: any) {
+                logger.error('Device initialization failed:', error);
                 const errorMessage = error.message || 'Failed to initialize device';
                 setErrors(prev => ({ ...prev, device: errorMessage }));
                 setUserState(USER_STATE.OFFLINE);
@@ -216,65 +232,90 @@ const ScreenDialer = () => {
         return phoneRegex.test(cleanNumber);
     };
 
-    // Common makeCall function for both manual and auto-dial
+    // Enhance makeCall with retry logic
     const makeCall = async (phoneNumber: string, options?: {
         isAutoDial?: boolean,
         index?: number,
-        callId?: string
     }) => {
+        logger.info('Attempting to make call', { phoneNumber, options });
+
         if (!device || !isDeviceReady) {
+            logger.error('Device not ready for call');
             throw new Error('Device not ready');
         }
 
         const cleanNumber = phoneNumber.replace(/[^\d+]/g, '');
         if (!validatePhoneNumber(cleanNumber)) {
+            logger.warn('Invalid phone number attempted', { cleanNumber });
             throw new Error('Invalid phone number');
         }
 
-        const call = await device.connect({
-            params: { To: cleanNumber },
-            rtcConstraints: { audio: true }
-        });
+        try {
+            logger.debug('Connecting call...', { to: cleanNumber });
+            const call = await device.connect({
+                params: { To: cleanNumber },
+                rtcConstraints: { audio: true }
+            });
 
-        // Set up base call management
-        setActiveCall(call);
-        const startTime = Date.now();
+            logger.info('Call connected successfully', { callSid: call.parameters.CallSid });
+            setActiveCall(call);
+            const startTime = Date.now();
 
-        // Set up common call event handlers
-        call.on('accept', () => {
-            setPhoneNumber(cleanNumber);
-            handleCallConnect(call);
-            setIsMuted(false);
-        });
+            call.on('accept', () => {
+                logger.info('Call accepted', { callSid: call.parameters.CallSid });
+                setPhoneNumber(cleanNumber);
+                handleCallConnect(call);
+                setIsMuted(false);
+            });
 
-        call.on('mute', (isMuted) => {
-            setIsMuted(isMuted);
-        });
+            call.on('mute', (isMuted) => {
+                setIsMuted(isMuted);
+            });
 
-        call.on('disconnect', () => {
-            const duration = Date.now() - startTime;
-            handleCallDisconnect();
+            call.on('disconnect', () => {
+                const duration = Date.now() - startTime;
+                logger.info('Call disconnected', {
+                    callSid: call.parameters.CallSid,
+                    duration,
+                    autoDialState,
+                    options
+                });
 
-            // Handle auto-dial specific logic
-            if (options?.isAutoDial && options.index !== undefined) {
-                if (autoDialState.isActive && !autoDialState.isPaused) {
+                handleCallDisconnect();
+
+                if (options?.isAutoDial &&
+                    options.index !== undefined &&
+                    autoDialState.isActive &&
+                    !autoDialState.isPaused) {
                     handleCallSuccess(options.index, duration);
                 }
-            }
-        });
+            });
 
-        call.on('error', (error) => {
-            console.error('Call error:', error);
-            handleCallDisconnect();
-            
+            call.on('error', (error) => {
+                logger.error('Call error occurred:', {
+                    error,
+                    callSid: call.parameters.CallSid,
+                    isAutoDial: options?.isAutoDial
+                });
+
+                handleCallDisconnect();
+
+                if (options?.isAutoDial && options.index !== undefined) {
+                    handleCallError(error, options.index);
+                } else {
+                    setErrorMessage(`Call failed: ${error.message || 'Unknown error'}`);
+                }
+            });
+
+            return call;
+        } catch (error: any) {
+            logger.error('Error initiating call:', error);
             if (options?.isAutoDial && options.index !== undefined) {
                 handleCallError(error, options.index);
             } else {
-                setErrorMessage(`Call failed: ${error.message || 'Unknown error'}`);
+                throw error;
             }
-        });
-
-        return call;
+        }
     };
 
     // Simplified handleCall for manual dialing
@@ -300,75 +341,6 @@ const ScreenDialer = () => {
         }
     };
 
-    // Remove the first simpler makeAutoCall and keep only this enhanced version
-    const makeAutoCall = async (index: number) => {
-        if (!device || index >= testNumbers.length) {
-            stopAutoDial();
-            return;
-        }
-    
-        const currentNumber = testNumbers[index];
-        const callId = `call-${Date.now()}`;
-        setCurrentCallId(callId);
-    
-        try {
-            // Update number status before making the call
-            setTestNumbers(prev => {
-                const updated = [...prev];
-                updated[index] = {
-                    ...updated[index],
-                    status: 'in-progress',
-                };
-                return updated;
-            });
-    
-            const call = await device.connect({
-                params: { To: currentNumber.number },
-                rtcConstraints: { audio: true }
-            });
-    
-            // Set up call management
-            setActiveCall(call);  // This enables mute and hangup controls
-            const startTime = Date.now();
-            let callCompleted = false;
-    
-            call.on('accept', () => {
-                if (currentCallId !== callId) return; // Prevent stale calls
-                setPhoneNumber(currentNumber.number);
-                handleCallConnect(call);
-                // Reset mute state for new call
-                setIsMuted(false);
-            });
-    
-            // Add mute state handler
-            call.on('mute', (isMuted) => {
-                setIsMuted(isMuted);
-            });
-    
-            call.on('disconnect', () => {
-                if (currentCallId !== callId || callCompleted) return;
-                callCompleted = true;
-    
-                const duration = Date.now() - startTime;
-                handleCallDisconnect();
-                if (autoDialState.isActive && !autoDialState.isPaused) {
-                    handleCallSuccess(index, duration);
-                }
-            });
-    
-            call.on('error', (error) => {
-                if (currentCallId !== callId || callCompleted) return;
-                callCompleted = true;
-                handleCallError(error, index);
-            });
-    
-        } catch (error: any) {
-            if (currentCallId === callId) {
-                handleCallError(error, index);
-            }
-        }
-    };
-
     // Modify toggleMute to work with auto-dialing
     const toggleMute = () => {
         if (activeCall) {
@@ -381,45 +353,37 @@ const ScreenDialer = () => {
         }
     };
 
-    // Modify handleHangUp to work with auto-dialing
+    // Modify handleHangUp to not trigger next auto-dial
     const handleHangUp = () => {
         if (activeCall) {
-            const wasAutoDialActive = autoDialState.isActive;
-            const currentIndex = autoDialState.currentIndex;
-
             try {
                 activeCall.disconnect();
-                // Update the current number's status
-                setTestNumbers(prev => {
-                    const updated = [...prev];
-                    if (currentIndex < updated.length) {
-                        updated[currentIndex] = {
-                            ...updated[currentIndex],
-                            status: 'completed',
-                            attempts: [
-                                ...updated[currentIndex].attempts,
+                // Only update the current number's status
+                if (autoDialState.isActive) {
+                    const currentIndex = autoDialState.currentIndex;
+                    setTestNumbers(prev => {
+                        const updated = [...prev];
+                        if (currentIndex < updated.length) {
+                            updated[currentIndex] = {
+                                ...updated[currentIndex],
+                                status: 'failed',
+                                attempt:
                                 {
                                     timestamp: Date.now(),
                                     duration: callStartTime ? Date.now() - callStartTime : 0,
-                                    status: 'success'
+                                    status: 'failed',
+                                    error: 'Manually disconnected'
                                 }
-                            ]
-                        };
-                    }
-                    return updated;
-                });
+                            };
+                        }
+                        return updated;
+                    });
+                }
             } catch (error) {
                 console.error('Error disconnecting call:', error);
             }
 
             handleCallDisconnect();
-
-            // Only proceed to next number if auto-dial is active and not paused
-            if (wasAutoDialActive && !autoDialState.isPaused) {
-                setTimeout(() => {
-                    processNextNumber(currentIndex + 1);
-                }, AUTO_DIAL_CONFIG.TRANSITION_DELAY);
-            }
         }
     };
 
@@ -441,6 +405,7 @@ const ScreenDialer = () => {
 
     // Add new error handling functions
     const handleCallError = async (error: any, index: number) => {
+        logger.error('Call failed', { index, error });
         // Update status and move to next number immediately
         setTestNumbers(prev => {
             const updated = [...prev];
@@ -448,61 +413,39 @@ const ScreenDialer = () => {
                 ...updated[index],
                 status: 'failed',
                 lastError: error.message,
-                attempts: [
-                    ...updated[index].attempts,
-                    {
-                        timestamp: Date.now(),
-                        status: 'failed',
-                        error: error.message
-                    }
-                ]
+                attempt:
+                {
+                    timestamp: Date.now(),
+                    status: 'failed',
+                    error: error.message
+                }
             };
             return updated;
         });
 
         // Short delay for UI update before moving to next number
         await new Promise(resolve => setTimeout(resolve, AUTO_DIAL_CONFIG.TRANSITION_DELAY));
-        processNextNumber(index + 1);
-    };
-
-    // Add better state tracking for processNextNumber
-    const processNextNumber = (nextIndex: number) => {
-        if (nextIndex >= testNumbers.length || !autoDialState.isActive) {
-            stopAutoDial();
-            return;
-        }
-
-        setAutoDialState(prev => ({ ...prev, currentIndex: nextIndex }));
-
-        if (!autoDialState.isPaused) {
-            setTimeout(() => {
-                makeAutoCall(nextIndex);
-            }, AUTO_DIAL_CONFIG.TRANSITION_DELAY);
-        }
+        setAutoDialState(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }));
     };
 
     // Improved handleCallSuccess with better state management
     const handleCallSuccess = async (index: number, duration: number) => {
+        logger.info('Call completed successfully', { index, duration });
         // Update the current number's status first
         setTestNumbers(prev => {
             const updated = [...prev];
             updated[index] = {
                 ...updated[index],
                 status: 'completed',
-                attempts: [
-                    ...updated[index].attempts,
-                    {
-                        timestamp: Date.now(),
-                        duration,
-                        status: 'success'
-                    }
-                ]
+                attempt:
+                {
+                    timestamp: Date.now(),
+                    duration,
+                    status: 'success'
+                }
             };
             return updated;
         });
-
-        // Small delay for UI update
-        await new Promise(resolve => setTimeout(resolve, AUTO_DIAL_CONFIG.TRANSITION_DELAY));
 
         // Update auto-dial state and process next call
         setAutoDialState(prev => {
@@ -512,15 +455,11 @@ const ScreenDialer = () => {
             }
             return { ...prev, currentIndex: nextIndex };
         });
-
-        // Process next call if auto-dial is still active
-        if (autoDialState.isActive && !autoDialState.isPaused) {
-            processNextNumber(index + 1);
-        }
     };
 
     // Enhanced auto-dial control functions
-    const startAutoDial = async () => {
+    const startAutoDial = () => {
+        logger.info('Starting auto-dial sequence');
         if (!device || !isDeviceReady || testNumbers.length === 0) {
             setErrorMessage('Cannot start auto-dial: device not ready or no numbers');
             return;
@@ -530,7 +469,6 @@ const ScreenDialer = () => {
         const resetNumbers = testNumbers.map(num => ({
             ...num,
             status: 'pending' as const,
-            attempts: [],
             lastError: undefined
         }));
 
@@ -540,38 +478,22 @@ const ScreenDialer = () => {
             isPaused: false,
             currentIndex: 0,
         });
-
-        // Start with the first call
-        makeAutoCall(0);
     };
 
-    // Enhance pause/resume functionality
     const pauseAutoDial = () => {
         setAutoDialState(prev => ({ ...prev, isPaused: true }));
-        // Don't disconnect ongoing call, just pause the sequence
     };
 
     const resumeAutoDial = () => {
         setAutoDialState(prev => ({ ...prev, isPaused: false }));
-        
-        // Only start next call if there's no active call
-        if (!activeCall && autoDialState.currentIndex < testNumbers.length) {
-            setTimeout(() => {
-                makeAutoCall(autoDialState.currentIndex);
-            }, AUTO_DIAL_CONFIG.TRANSITION_DELAY);
-        }
     };
 
-    // Enhanced stopAutoDial with proper cleanup
     const stopAutoDial = () => {
         setAutoDialState({
             isActive: false,
             isPaused: false,
             currentIndex: 0,
         });
-        setCurrentCallId(null);
-        
-        // Don't disconnect ongoing call, just stop the sequence
     };
 
     // Add error dismissal handlers
@@ -579,26 +501,111 @@ const ScreenDialer = () => {
         setErrors(prev => ({ ...prev, [type]: undefined }));
     };
 
+    // Add new useEffect for auto-dialing logic
+    useEffect(() => {
+        let timeoutId: NodeJS.Timeout;
+
+        const processNextCall = async () => {
+            if (!autoDialState.isActive ||
+                autoDialState.isPaused ||
+                !device ||
+                !isDeviceReady ||
+                activeCall
+            ) {
+                return;
+            }
+
+            const currentIndex = autoDialState.currentIndex;
+            if (currentIndex >= testNumbers.length) {
+                stopAutoDial();
+                return;
+            }
+
+            const currentNumber = testNumbers[currentIndex];
+
+            // Update status to in-progress
+            setTestNumbers(prev => {
+                const updated = [...prev];
+                updated[currentIndex] = {
+                    ...updated[currentIndex],
+                    status: 'in-progress'
+                };
+                return updated;
+            });
+
+            try {
+                await makeCall(currentNumber.number, {
+                    isAutoDial: true,
+                    index: currentIndex
+                });
+
+            } catch (error: any) {
+                logger.error('Auto-dial call failed:', error);
+                handleCallError(error, currentIndex);
+
+                // Schedule next call after error
+                timeoutId = setTimeout(() => {
+                    setAutoDialState(prev => ({
+                        ...prev,
+                        currentIndex: prev.currentIndex + 1
+                    }));
+                }, AUTO_DIAL_CONFIG.TRANSITION_DELAY);
+            }
+        };
+
+        if (autoDialState.isActive && !autoDialState.isPaused) {
+            processNextCall();
+        }
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
+    }, [
+        autoDialState.isActive,
+        autoDialState.isPaused,
+        autoDialState.currentIndex,
+        device,
+        isDeviceReady,
+        activeCall
+    ]);
+
+    // Call completion effect
+    useEffect(() => {
+        if (!activeCall && autoDialState.isActive && !autoDialState.isPaused) {
+            const timeoutId = setTimeout(() => {
+                setAutoDialState(prev => {
+                    if (prev.currentIndex >= testNumbers.length - 1) {
+                        return { isActive: false, isPaused: false, currentIndex: 0 };
+                    }
+                    return { ...prev, currentIndex: prev.currentIndex + 1 };
+                });
+            }, AUTO_DIAL_CONFIG.TRANSITION_DELAY);
+
+            return () => clearTimeout(timeoutId);
+        }
+    }, [activeCall, autoDialState.isActive, autoDialState.isPaused]);
+
+
     return (
         <div className="min-h-screen bg-gray-100 p-4">
             <div className="max-w-6xl mx-auto space-y-4">
                 {/* Error Displays */}
                 {errors.device && (
-                    <ErrorDisplay 
+                    <ErrorDisplay
                         message={errors.device}
                         type="error"
                         onDismiss={() => dismissError('device')}
                     />
                 )}
                 {errors.validation && (
-                    <ErrorDisplay 
+                    <ErrorDisplay
                         message={errors.validation}
                         type="warning"
                         onDismiss={() => dismissError('validation')}
                     />
                 )}
                 {errors.call && (
-                    <ErrorDisplay 
+                    <ErrorDisplay
                         message={errors.call}
                         type="error"
                         onDismiss={() => dismissError('call')}
@@ -758,8 +765,8 @@ const ScreenDialer = () => {
                                             <tr
                                                 key={item.id}
                                                 className={`text-xs ${index === autoDialState.currentIndex
-                                                        ? 'bg-blue-50'
-                                                        : 'hover:bg-gray-50'
+                                                    ? 'bg-blue-50'
+                                                    : 'hover:bg-gray-50'
                                                     }`}
                                             >
                                                 <td className="py-2 px-3">{item.id}</td>
