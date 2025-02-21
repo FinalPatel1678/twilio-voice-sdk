@@ -1,83 +1,20 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Mic, MicOff } from 'lucide-react';
 import { Call, Device } from '@twilio/voice-sdk';
 import { fetchCallDetails, getAccessToken } from '../services/twilioService';
 import LocalStorageManager from '../services/localStorageManager';
 import usePersistor from '../hooks/usePersistor';
+import StatusBar from './StatusBar';
+import ManualDialer from './ManualDialer';
+import AutoDialControls from './AutoDialControls';
+import CallQueue from './CallQueue';
 import ErrorDisplay from './ErrorDisplay';
-import CallSummaryModal from './CallSummaryModal';
+import CallSummaryModal, { CallSummaryData } from './CallSummaryModal';
+import logger from '../utils/logger';
+import { TestNumber, CallAttempt, AutoDialState } from '../types/call.types';
+import { USER_STATE } from '../types/call.types';
 import LoadingSpinner from './LoadingSpinner';
-import type { CallSummaryData } from './CallSummaryModal';
 
-const USER_STATE = {
-    CONNECTING: "Connecting",
-    READY: "Ready",
-    ON_CALL: "On call",
-    OFFLINE: "Offline",
-};
-
-const numberList = [1, 2, 3, 4, 5, 6, 7, 8, 9, '+', 0, '⌫'];
 const localStorageManager = new LocalStorageManager();
-
-// Update CallAttempt interface with more detailed status
-interface CallAttempt {
-    timestamp: number;
-    duration?: number;
-    status:
-    | 'success'           // Call was answered by human and completed normally
-    | 'voicemail'        // Call was answered by voicemail/machine
-    | 'no-answer'        // Call rang but was not answered
-    | 'busy'            // Received busy signal
-    | 'failed'          // Technical failure during call
-    | 'canceled'        // Call was canceled before completion
-    | 'rejected'        // Call was rejected by recipient
-    | 'invalid-number'  // Number was invalid or not in service
-    | 'error';          // Generic error
-    error?: string;
-    attempts?: number;      // Track retry attempts
-    callSid?: string;      // Store Twilio call SID
-    answerTime?: number;   // Time when call was answered
-    endTime?: number;      // Time when call ended
-    recordings?: string[]; // Any recording URLs
-}
-
-// Simplify TestNumber interface
-interface TestNumber {
-    number: string;
-    status: 'pending' | 'in-progress' | 'completed' | 'failed';
-    attempt?: CallAttempt;
-    lastError?: string;
-}
-
-// Enhance the AutoDialState interface
-interface AutoDialState {
-    isActive: boolean;
-    isPaused: boolean;
-    currentIndex: number;
-}
-
-// Enhance the logger
-const logger = {
-    info: (message: string, data?: any) => {
-        console.log(`[INFO] ${message}`, data ? JSON.stringify(data, null, 2) : '');
-    },
-    error: (message: string, error?: any) => {
-        console.error(`[ERROR] ${message}`, error ? {
-            message: error.message,
-            stack: error.stack,
-            details: error
-        } : '');
-    },
-    warn: (message: string, data?: any) => {
-        console.warn(`[WARN] ${message}`, data ? JSON.stringify(data, null, 2) : '');
-    },
-    debug: (message: string, data?: any) => {
-        console.debug(`[DEBUG] ${message}`, data ? JSON.stringify(data, null, 2) : '');
-    },
-    state: (component: string, data: any) => {
-        console.log(`[STATE][${component}]`, JSON.stringify(data, null, 2));
-    }
-};
 
 const ScreenDialer = () => {
     // Existing states from FloatingDialer
@@ -458,22 +395,6 @@ const ScreenDialer = () => {
         }
     };
 
-    const formatElapsedTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const getStateColor = (state: string) => {
-        switch (state) {
-            case USER_STATE.CONNECTING: return 'bg-yellow-400';
-            case USER_STATE.READY: return 'bg-green-500';
-            case USER_STATE.ON_CALL: return 'bg-red-500';
-            case USER_STATE.OFFLINE: return 'bg-gray-400';
-            default: return 'bg-gray-400';
-        }
-    };
-
     // Add new error handling functions
     const handleCallError = async (error: any, index: number) => {
         logger.error('Call failed', { index, error });
@@ -747,44 +668,6 @@ const ScreenDialer = () => {
         }
     }, [activeCall, autoDialState, isDeviceReady, testNumbers, userState]);
 
-    const renderCallStatus = (item: TestNumber, index: number) => {
-        if (callDetailLoading?.index === index) {
-            return (
-                <div className="flex items-center space-x-2">
-                    <LoadingSpinner size="small" />
-                    <span className="text-xs text-gray-600">{callDetailLoading.status}</span>
-                </div>
-            );
-        }
-
-
-
-        return (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                ${item.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    item.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                        item.status === 'failed' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'}`}>
-                {item.status}
-            </span>
-        );
-    };
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'success': return 'bg-green-100 text-green-800';
-            case 'voicemail': return 'bg-yellow-100 text-yellow-800';
-            case 'no-answer': return 'bg-orange-100 text-orange-800';
-            case 'busy': return 'bg-purple-100 text-purple-800';
-            case 'failed': return 'bg-red-100 text-red-800';
-            case 'canceled': return 'bg-gray-100 text-gray-800';
-            case 'rejected': return 'bg-red-100 text-red-800';
-            case 'invalid-number': return 'bg-red-100 text-red-800';
-            case 'error': return 'bg-red-100 text-red-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
     const removeNumberFromQueue = (index: number) => {
         // During auto-dial, only allow removal of numbers that haven't been processed yet
         if (autoDialState.isActive && index <= autoDialState.currentIndex) {
@@ -798,36 +681,14 @@ const ScreenDialer = () => {
         <div className="min-h-screen bg-gray-100 p-4">
             <div className="max-w-7xl mx-auto space-y-4">
                 {/* Status Bar */}
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                            <div className="flex items-center gap-2">
-                                <div className={`w-3 h-3 rounded-full ${getStateColor(userState)}`} />
-                                <span className="text-lg font-medium text-gray-700">{userState}</span>
-                            </div>
-                            {activeCall && (
-                                <div className="flex items-center space-x-2">
-                                    <span className="text-gray-500">Current call:</span>
-                                    <span className="font-mono text-lg">{phoneNumber}</span>
-                                </div>
-                            )}
-                        </div>
-                        {activeCall && (
-                            <div className="flex items-center space-x-3">
-                                <div className="text-lg font-mono bg-gray-100 px-3 py-1 rounded-md">
-                                    {formatElapsedTime(elapsedTime)}
-                                </div>
-                                <button
-                                    onClick={toggleMute}
-                                    className={`p-2.5 rounded-full transition-colors ${isMuted ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-600'
-                                        }`}
-                                >
-                                    {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                <StatusBar
+                    userState={userState}
+                    activeCall={activeCall}
+                    phoneNumber={phoneNumber}
+                    isMuted={isMuted}
+                    elapsedTime={elapsedTime}
+                    onToggleMute={toggleMute}
+                />
 
                 {/* Error Displays */}
                 {(errors.device || errors.validation || errors.call || errorMessage) && (
@@ -864,180 +725,64 @@ const ScreenDialer = () => {
                 )}
 
                 <div className="grid grid-cols-12 gap-4">
-                    {/* Left Panel - Dialer */}
-                    <div className="col-span-12 lg:col-span-4 bg-white rounded-lg shadow-sm">
-                        <div className="p-4 border-b">
-                            <h2 className="text-lg font-semibold">Manual Dialer</h2>
-                        </div>
-                        <div className="p-4 space-y-4">
-                            <input
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                value={phoneNumber}
-                                onChange={(e) => setPhoneNumber(e.target.value)}
-                                placeholder={isDeviceReady ? "Enter phone number" : "Initializing..."}
-                                disabled={!isDeviceReady || !!activeCall || isLoading}
-                            />
+                    {/* Manual Dialer */}
+                    <ManualDialer
+                        phoneNumber={phoneNumber}
+                        isDeviceReady={isDeviceReady}
+                        activeCall={activeCall}
+                        isLoading={isLoading}
+                        onPhoneNumberChange={setPhoneNumber}
+                        onCall={handleCall}
+                        onHangUp={handleHangUp}
+                    />
 
-                            <div className="grid grid-cols-3 gap-3">
-                                {numberList.map((value) => (
-                                    <button
-                                        key={value}
-                                        onClick={() => {
-                                            if (!isDeviceReady || activeCall) return;
-                                            if (value === '⌫') {
-                                                setPhoneNumber(phoneNumber.slice(0, -1));
-                                            } else {
-                                                setPhoneNumber(phoneNumber + value);
-                                            }
-                                        }}
-                                        disabled={!isDeviceReady || !!activeCall || isLoading}
-                                        className="h-12 rounded-md bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {value}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <button
-                                onClick={activeCall ? handleHangUp : handleCall}
-                                disabled={!isDeviceReady || isLoading || (!phoneNumber && !activeCall)}
-                                className={`w-full py-3 rounded-lg font-medium text-white text-base transition-colors
-                                    ${activeCall ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}
-                                    disabled:opacity-50 disabled:cursor-not-allowed`}
-                            >
-                                {isLoading ? 'Connecting...' : activeCall ? 'End Call' : 'Call'}
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Middle Panel - Auto Dial Controls */}
                     <div className="col-span-12 lg:col-span-8 space-y-4">
-                        <div className="bg-white rounded-lg shadow-sm">
-                            <div className="p-4 border-b">
-                                <h2 className="text-lg font-semibold">Auto-Dial Controls</h2>
-                            </div>
-                            <div className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-1">
-                                        <div className="text-sm font-medium text-gray-500">Progress</div>
-                                        <div className="text-2xl font-semibold">
-                                            {autoDialState.currentIndex}/{testNumbers.length}
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <button
-                                            onClick={startAutoDial}
-                                            disabled={!isDeviceReady || autoDialState.isActive || !!activeCall || testNumbers.length === 0}
-                                            className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-green-500 transition-colors"
-                                        >
-                                            Start Auto-Dial
-                                        </button>
-                                        {autoDialState.isActive && (
-                                            <>
-                                                {autoDialState.isPaused ? (
-                                                    <button
-                                                        onClick={resumeAutoDial}
-                                                        className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 transition-colors"
-                                                    >
-                                                        Resume
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={pauseAutoDial}
-                                                        className="px-4 py-2 bg-yellow-500 text-white rounded-md text-sm font-medium hover:bg-yellow-600 transition-colors"
-                                                    >
-                                                        Pause
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={stopAutoDial}
-                                                    className="px-4 py-2 bg-red-500 text-white rounded-md text-sm font-medium hover:bg-red-600 transition-colors"
-                                                >
-                                                    Stop
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        {/* Auto Dial Controls */}
+                        <AutoDialControls
+                            autoDialState={autoDialState}
+                            isDeviceReady={isDeviceReady}
+                            activeCall={!!activeCall}
+                            totalNumbers={testNumbers.length}
+                            onStart={startAutoDial}
+                            onPause={pauseAutoDial}
+                            onResume={resumeAutoDial}
+                            onStop={stopAutoDial}
+                        />
 
-                        {/* Call Queue Table */}
-                        <div className="bg-white rounded-lg shadow-sm">
-                            <div className="p-4 border-b">
-                                <h2 className="text-lg font-semibold">Call Queue</h2>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">#</th>
-                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Number</th>
-                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Status</th>
-                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Attempt</th>
-                                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {testNumbers.map((item, index) => (
-                                            <tr
-                                                key={item.number}
-                                                className={`${index === autoDialState.currentIndex ? 'bg-blue-50' : 'hover:bg-gray-50'
-                                                    }`}
-                                            >
-                                                <td className="py-3 px-4 text-sm">{index + 1}</td>
-                                                <td className="py-3 px-4 text-sm font-medium">{item.number}</td>
-                                                <td className="py-3 px-4">{renderCallStatus(item, index)}</td>
-                                                <td className="py-3 px-4">
-                                                    {item.attempt && (
-                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.attempt.status)}`}>
-                                                            {item.attempt.status}
-                                                            {item.attempt.duration && ` (${Math.round(item.attempt.duration / 1000)}s)`}
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="py-3 px-4">
-                                                    <button
-                                                        onClick={() => removeNumberFromQueue(index)}
-                                                        disabled={autoDialState.isActive && index <= autoDialState.currentIndex}
-                                                        className="p-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
-                                                    >
-                                                        <X className="w-4 h-4" />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                        {/* Call Queue */}
+                        <CallQueue
+                            testNumbers={testNumbers}
+                            currentIndex={autoDialState.currentIndex}
+                            callDetailLoading={callDetailLoading}
+                            isAutoDialActive={autoDialState.isActive}
+                            onRemoveNumber={removeNumberFromQueue}
+                        />
                     </div>
                 </div>
             </div>
 
-
-            {
-                showSummaryModal && completedCallDetails && (
-                    <div className="fixed inset-0 z-50 overflow-y-auto">
-                        <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
-                        <div className="flex min-h-full items-center justify-center p-4">
-                            <CallSummaryModal
-                                isOpen={showSummaryModal}
-                                callDetails={completedCallDetails}
-                                onClose={() => handleCallSummarySubmit({
-                                    notes: '', outcome: 'no-answer',
-                                    phoneNumber: '',
-                                    duration: 0,
-                                    timestamp: 0,
-                                    followUpRequired: false
-                                })} // Handle close same as submit
-                                onSubmit={handleCallSummarySubmit}
-                            />
-                        </div>
+            {/* Call Summary Modal */}
+            {showSummaryModal && completedCallDetails && (
+                <div className="fixed inset-0 z-50 overflow-y-auto">
+                    <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
+                    <div className="flex min-h-full items-center justify-center p-4">
+                        <CallSummaryModal
+                            isOpen={showSummaryModal}
+                            callDetails={completedCallDetails}
+                            onClose={() => handleCallSummarySubmit({
+                                notes: '',
+                                outcome: 'no-answer',
+                                phoneNumber: '',
+                                duration: 0,
+                                timestamp: 0,
+                                followUpRequired: false
+                            })}
+                            onSubmit={handleCallSummarySubmit}
+                        />
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     );
 };
 
