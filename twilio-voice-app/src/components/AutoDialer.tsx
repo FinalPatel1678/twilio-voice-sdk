@@ -13,17 +13,18 @@ import logger from '../utils/logger';
 import { CandidateNumber, CallAttempt, AutoDialState } from '../types/call.types';
 import { USER_STATE } from '../types/call.types';
 import { Candidate } from '../types/candidate.type';
-import { UserSettings } from '../types/user.types';
 
 const localStorageManager = new LocalStorageManager();
 
 interface AutoDialerProps {
     apiBaseUrl: string;
     candidates: Candidate[],
-    userSettings: UserSettings
+    userId: string,
+    reqId: string
 }
 
-const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userSettings }) => {
+const AutoDialer: React.FC<AutoDialerProps> = ({
+    apiBaseUrl, candidates, userId, reqId }) => {
     // Existing states from FloatingDialer
     const [device, setDevice] = useState<Device | null>(null);
     const [userState, setUserState] = useState<string>(USER_STATE.OFFLINE);
@@ -114,7 +115,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userSet
             try {
                 setUserState(USER_STATE.CONNECTING);
                 setIsLoading(true);
-                const tokenData = await getAccessToken(userSettings.UserID);
+                const tokenData = await getAccessToken(userId);
                 logger.debug('Access token received', {
                     tokenReceived: !!tokenData?.token,
                     tokenLength: tokenData?.token?.length
@@ -146,7 +147,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userSet
 
                 newDevice.on('tokenWillExpire', async () => {
                     logger.warn('Token will expire soon, requesting new token');
-                    const token = await getAccessToken(userSettings.UserID);
+                    const token = await getAccessToken(userId);
                     newDevice.updateToken(token.token);
                 });
 
@@ -204,7 +205,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userSet
     const handleDeviceError = async (error: { code: number; message?: string }) => {
         console.error('Device error:', error);
         if (error?.code === 20101) {
-            const token = await getAccessToken(userSettings.UserID);
+            const token = await getAccessToken(userId);
             device?.updateToken(token.token);
         }
         setUserState(USER_STATE.OFFLINE);
@@ -267,7 +268,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userSet
                 });
 
                 const call = await device.connect({
-                    params: { To: cleanNumber, userId: userSettings.UserID },
+                    params: { To: cleanNumber, userId: userId, reqId: reqId },
                     rtcConstraints: { audio: true }
                 });
 

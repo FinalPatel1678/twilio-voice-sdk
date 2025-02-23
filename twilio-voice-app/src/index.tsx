@@ -5,7 +5,7 @@ import App from "./App";
 import { Candidate } from "./types/candidate.type";
 import { UserSettings } from "./types/user.types";
 
-// Function to extract data from Razor view
+// Function to extract data from Razor view safely
 const getAppData = () => {
   const rootElement = document.getElementById("twilio-auto-dialer-root");
 
@@ -14,11 +14,17 @@ const getAppData = () => {
     return null;
   }
 
-  return {
-    apiBaseUrl: rootElement.dataset.apiUrl || "",
-    candidates: JSON.parse(rootElement.dataset.candidates || "[]") as Candidate[],
-    userSettings: JSON.parse(rootElement.dataset.userSettings || "{}") as UserSettings,
-  };
+  try {
+    return {
+      apiBaseUrl: rootElement.dataset.apiUrl || "",
+      candidates: JSON.parse(rootElement.dataset.candidates || "[]") as Candidate[],
+      userId: JSON.parse(rootElement.dataset.userId || '""'),
+      reqId: JSON.parse(rootElement.dataset.reqId || "0"),
+    };
+  } catch (error) {
+    console.error("Error parsing data attributes:", error);
+    return null;
+  }
 };
 
 // Initialize App
@@ -30,7 +36,8 @@ if (appData) {
     <App
       apiBaseUrl={appData.apiBaseUrl}
       candidates={appData.candidates}
-      userSettings={appData.userSettings}
+      userId={appData.userId}
+      reqId={appData.reqId}
     />
   );
 }

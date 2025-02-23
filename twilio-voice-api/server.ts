@@ -72,14 +72,13 @@ app.get('/GetAccessToken', (req, res) => {
 
 // Route to generate TwiML for outgoing call
 app.post('/twiml-app', (req, res) => {
-  const { To } = req.body;
+  const { To, userId ,reqId} = req.body;
   const twiml = new Twilio.twiml.VoiceResponse();
 
   const dial = twiml.dial({
-    // record: 'record-from-answer-dual',
     callerId: process.env.TWILIO_CALLER_ID,
     answerOnBridge: true,
-    action: `${process.env.APP_BASE_URL}/action`, // Redirect if unanswered
+    action: `${process.env.APP_BASE_URL}/action`,
   });
 
   dial.number({
@@ -87,7 +86,7 @@ app.post('/twiml-app', (req, res) => {
     statusCallbackMethod: 'POST',
     statusCallback: `${process.env.APP_BASE_URL}/status`,
     machineDetection: 'DetectMessageEnd',
-    amdStatusCallback: `${process.env.APP_BASE_URL}/amd-webhook`,
+    amdStatusCallback: `${process.env.APP_BASE_URL}/amd-webhook?userId=${userId}&reqId=${reqId}`,
     amdStatusCallbackMethod: 'POST',
   }, To);
 
@@ -98,7 +97,10 @@ app.post('/twiml-app', (req, res) => {
 // Route for voicemail handling
 app.post('/amd-webhook', async (req, res) => {
   const { AnsweredBy, CallSid } = req.body;
+  const userId = req.query.userId as string;
+  const reqId = req.query.reqId as string;
 
+  console.log('AMD Webhook called for user:', userId,reqId);
   const twiml = new Twilio.twiml.VoiceResponse();
 
   switch (AnsweredBy) {
