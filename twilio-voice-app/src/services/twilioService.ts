@@ -1,9 +1,9 @@
 import axios from 'axios';
 
 // Fetch the Twilio access token
-export const getAccessToken = async (): Promise<{ token: string }> => {
+export const getAccessToken = async (userId:string): Promise<{ token: string }> => {
   try {
-    const response = await axios.get<{ token: string }>(`${process.env.REACT_APP_BASE_URL}/access_token`);
+    const response = await axios.get<{ token: string }>(`./GetAccessToken`,{params: { userId }});
     return response.data;
   } catch (error) {
     console.error('Error fetching access token:', error);
@@ -12,10 +12,10 @@ export const getAccessToken = async (): Promise<{ token: string }> => {
 };
 
 // Add new function to fetch call details
-export const fetchCallDetails = async (callSid: string): Promise<any> => {
+export const fetchCallDetails = async (apiBaseUrl: string, callSid: string): Promise<any> => {
   try {
     const response = await axios.post<{ call: any }>(
-      `${process.env.REACT_APP_BASE_URL}/fetch-call`,
+      `./FetchCall`,
       { callSid }
     );
     return response.data.call;

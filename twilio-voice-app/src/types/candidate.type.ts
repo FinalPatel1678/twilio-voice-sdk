@@ -1,0 +1,1 @@
+export interface Candidate { CandidateID: number; Mobile: string }

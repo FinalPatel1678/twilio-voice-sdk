@@ -1,4 +1,3 @@
-import { Call, Device } from '@twilio/voice-sdk';
 
 export interface CallAttempt {
     timestamp: number;
@@ -21,7 +20,8 @@ export interface CallAttempt {
     recordings?: string[];
 }
 
-export interface TestNumber {
+export interface CandidateNumber {
+    id:string,
     number: string;
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
     attempt?: CallAttempt;

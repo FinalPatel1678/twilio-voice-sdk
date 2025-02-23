@@ -42,13 +42,13 @@ requiredEnvVars.forEach((envVar) => {
 });
 
 // Route to get Twilio access token
-app.get('/access_token', (req, res) => {
+app.get('/GetAccessToken', (req, res) => {
   try {
     const AccessToken = Twilio.jwt.AccessToken;
     const VoiceGrant = AccessToken.VoiceGrant;
 
     const { TWILIO_ACCOUNT_SID, TWILIO_API_KEY, TWILIO_API_SECRET, TWILIO_APP_SID } = process.env;
-    const identity = req.query.user as string || 'unknown_user';
+    const identity = req.query.userId as string || 'unknown_user';
 
     const voiceGrant = new VoiceGrant({
       outgoingApplicationSid: TWILIO_APP_SID,

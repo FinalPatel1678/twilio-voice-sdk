@@ -1,10 +1,10 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { TestNumber, CallDetailLoading } from '../types/call.types';
+import { CandidateNumber, CallDetailLoading } from '../types/call.types';
 import LoadingSpinner from './LoadingSpinner';
 
 interface CallQueueProps {
-    testNumbers: TestNumber[];
+    candidateNumbers: CandidateNumber[];
     currentIndex: number;
     callDetailLoading: CallDetailLoading | null;
     isAutoDialActive: boolean;
@@ -12,7 +12,7 @@ interface CallQueueProps {
 }
 
 const CallQueue: React.FC<CallQueueProps> = ({
-    testNumbers,
+    candidateNumbers,
     currentIndex,
     callDetailLoading,
     isAutoDialActive,
@@ -33,7 +33,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
         }
     };
 
-    const renderCallStatus = (item: TestNumber, index: number) => {
+    const renderCallStatus = (item: CandidateNumber, index: number) => {
         if (callDetailLoading?.index === index) {
             return (
                 <div className="flex items-center space-x-2">
@@ -71,9 +71,9 @@ const CallQueue: React.FC<CallQueueProps> = ({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {testNumbers.map((item, index) => (
+                        {candidateNumbers.map((item, index) => (
                             <tr
-                                key={item.number}
+                                key={item.id}
                                 className={`${index === currentIndex ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                             >
                                 <td className="py-3 px-4 text-sm">{index + 1}</td>

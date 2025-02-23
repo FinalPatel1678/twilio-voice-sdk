@@ -10,13 +10,20 @@ import CallQueue from './CallQueue';
 import ErrorDisplay from './ErrorDisplay';
 import CallSummaryModal, { CallSummaryData } from './CallSummaryModal';
 import logger from '../utils/logger';
-import { TestNumber, CallAttempt, AutoDialState } from '../types/call.types';
+import { CandidateNumber, CallAttempt, AutoDialState } from '../types/call.types';
 import { USER_STATE } from '../types/call.types';
-import LoadingSpinner from './LoadingSpinner';
+import { Candidate } from '../types/candidate.type';
+import { UserSettings } from '../types/user.types';
 
 const localStorageManager = new LocalStorageManager();
 
-const ScreenDialer = () => {
+interface AutoDialerProps {
+    apiBaseUrl: string;
+    candidates: Candidate[],
+    userSettings: UserSettings
+}
+
+const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userSettings }) => {
     // Existing states from FloatingDialer
     const [device, setDevice] = useState<Device | null>(null);
     const [userState, setUserState] = useState<string>(USER_STATE.OFFLINE);
@@ -38,20 +45,11 @@ const ScreenDialer = () => {
 
     // Enhanced states for better error handling
     // Update initial test numbers state without retry
-    const [testNumbers, setTestNumbers] = useState<TestNumber[]>([
-        {
-            number: '+917201898644',
-            status: 'pending'
-        },
-        {
-            number: '+917359665133',
-            status: 'pending'
-        },
-        {
-            number: '+919727365133',
-            status: 'pending'
-        },
-    ]);
+    const [candidateNumbers, setCandidateNumbers] = useState<CandidateNumber[]>(candidates.map((candidate) => ({
+        id: candidate.CandidateID.toString(),
+        number: candidate.Mobile,
+        status: 'pending'
+    })));
 
     const [autoDialState, setAutoDialState] = useState<AutoDialState>({
         isActive: false,
@@ -116,7 +114,7 @@ const ScreenDialer = () => {
             try {
                 setUserState(USER_STATE.CONNECTING);
                 setIsLoading(true);
-                const tokenData = await getAccessToken();
+                const tokenData = await getAccessToken(userSettings.UserID);
                 logger.debug('Access token received', {
                     tokenReceived: !!tokenData?.token,
                     tokenLength: tokenData?.token?.length
@@ -148,7 +146,7 @@ const ScreenDialer = () => {
 
                 newDevice.on('tokenWillExpire', async () => {
                     logger.warn('Token will expire soon, requesting new token');
-                    const token = await getAccessToken();
+                    const token = await getAccessToken(userSettings.UserID);
                     newDevice.updateToken(token.token);
                 });
 
@@ -206,7 +204,7 @@ const ScreenDialer = () => {
     const handleDeviceError = async (error: { code: number; message?: string }) => {
         console.error('Device error:', error);
         if (error?.code === 20101) {
-            const token = await getAccessToken();
+            const token = await getAccessToken(userSettings.UserID);
             device?.updateToken(token.token);
         }
         setUserState(USER_STATE.OFFLINE);
@@ -269,7 +267,7 @@ const ScreenDialer = () => {
                 });
 
                 const call = await device.connect({
-                    params: { To: cleanNumber },
+                    params: { To: cleanNumber, userId: userSettings.UserID },
                     rtcConstraints: { audio: true }
                 });
 
@@ -399,7 +397,7 @@ const ScreenDialer = () => {
     const handleCallError = async (error: any, index: number) => {
         logger.error('Call failed', { index, error });
         // Update status and move to next number immediately
-        setTestNumbers(prev => {
+        setCandidateNumbers(prev => {
             const updated = [...prev];
             updated[index] = {
                 ...updated[index],
@@ -436,7 +434,7 @@ const ScreenDialer = () => {
 
     const processNextAutoDialCall = () => {
         const nextIndex = autoDialState.currentIndex + 1;
-        if (nextIndex >= testNumbers.length) {
+        if (nextIndex >= candidateNumbers.length) {
             stopAutoDial();
         } else {
             setAutoDialState(prev => ({
@@ -446,8 +444,8 @@ const ScreenDialer = () => {
         }
     };
 
-    const updateTestNumberStatus = (index: number, status: TestNumber['status'], attempt?: CallAttempt) => {
-        setTestNumbers(prev => {
+    const updateTestNumberStatus = (index: number, status: CandidateNumber['status'], attempt?: CallAttempt) => {
+        setCandidateNumbers(prev => {
             const updated = [...prev];
             updated[index] = {
                 ...updated[index],
@@ -461,7 +459,7 @@ const ScreenDialer = () => {
     const handleCallSuccess = async (callSid: string, index: number, duration: number) => {
         logger.info('Call completed successfully', { index, duration, callSid });
 
-        const currentNumber = testNumbers[index].number;
+        const currentNumber = candidateNumbers[index].number;
         const startTime = Date.now() - duration;
 
         // Set initial attempt data
@@ -484,7 +482,7 @@ const ScreenDialer = () => {
                     status: 'Analyzing call details...'
                 });
 
-                const callDetails = await fetchCallDetails(callSid);
+                const callDetails = await fetchCallDetails(apiBaseUrl, callSid);
 
                 // Enhanced call status determination
                 let callStatus: CallAttempt['status'] = 'success';
@@ -546,19 +544,19 @@ const ScreenDialer = () => {
     // Enhanced auto-dial control functions
     const startAutoDial = () => {
         logger.info('Starting auto-dial sequence');
-        if (!device || !isDeviceReady || testNumbers.length === 0) {
+        if (!device || !isDeviceReady || candidateNumbers.length === 0) {
             setErrorMessage('Cannot start auto-dial: device not ready or no numbers');
             return;
         }
 
         // Reset all numbers to pending state
-        const resetNumbers = testNumbers.map(num => ({
+        const resetNumbers = candidateNumbers.map(num => ({
             ...num,
             status: 'pending' as const,
             lastError: undefined
         }));
 
-        setTestNumbers(resetNumbers);
+        setCandidateNumbers(resetNumbers);
         setAutoDialState({
             isActive: true,
             isPaused: false,
@@ -602,15 +600,15 @@ const ScreenDialer = () => {
             }
 
             const currentIndex = autoDialState.currentIndex;
-            if (currentIndex >= testNumbers.length) {
+            if (currentIndex >= candidateNumbers.length) {
                 stopAutoDial();
                 return;
             }
 
-            const currentNumber = testNumbers[currentIndex];
+            const currentNumber = candidateNumbers[currentIndex];
 
             // Update status to in-progress
-            setTestNumbers(prev => {
+            setCandidateNumbers(prev => {
                 const updated = [...prev];
                 updated[currentIndex] = {
                     ...updated[currentIndex],
@@ -657,8 +655,8 @@ const ScreenDialer = () => {
         if (autoDialState.isActive) {
             logger.state('AutoDial', {
                 state: autoDialState,
-                currentNumber: testNumbers[autoDialState.currentIndex]?.number,
-                remainingCalls: testNumbers.length - autoDialState.currentIndex,
+                currentNumber: candidateNumbers[autoDialState.currentIndex]?.number,
+                remainingCalls: candidateNumbers.length - autoDialState.currentIndex,
                 deviceState: {
                     ready: isDeviceReady,
                     userState,
@@ -666,7 +664,7 @@ const ScreenDialer = () => {
                 }
             });
         }
-    }, [activeCall, autoDialState, isDeviceReady, testNumbers, userState]);
+    }, [activeCall, autoDialState, isDeviceReady, candidateNumbers, userState]);
 
     const removeNumberFromQueue = (index: number) => {
         // During auto-dial, only allow removal of numbers that haven't been processed yet
@@ -674,7 +672,7 @@ const ScreenDialer = () => {
             return;
         }
 
-        setTestNumbers(prev => prev.filter((_, i) => i !== index));
+        setCandidateNumbers(prev => prev.filter((_, i) => i !== index));
     };
 
     return (
@@ -742,7 +740,7 @@ const ScreenDialer = () => {
                             autoDialState={autoDialState}
                             isDeviceReady={isDeviceReady}
                             activeCall={!!activeCall}
-                            totalNumbers={testNumbers.length}
+                            totalNumbers={candidateNumbers.length}
                             onStart={startAutoDial}
                             onPause={pauseAutoDial}
                             onResume={resumeAutoDial}
@@ -751,7 +749,7 @@ const ScreenDialer = () => {
 
                         {/* Call Queue */}
                         <CallQueue
-                            testNumbers={testNumbers}
+                            candidateNumbers={candidateNumbers}
                             currentIndex={autoDialState.currentIndex}
                             callDetailLoading={callDetailLoading}
                             isAutoDialActive={autoDialState.isActive}
@@ -786,4 +784,4 @@ const ScreenDialer = () => {
     );
 };
 
-export default ScreenDialer;
+export default AutoDialer;

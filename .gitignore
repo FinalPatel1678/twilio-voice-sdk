@@ -39,7 +39,9 @@ log/
 # Miscellaneous
 public/static/
 dist/
+build/
 *.lock
 
 # TypeScript
 *.tsbuildinfo
+
