@@ -3,7 +3,6 @@ import ReactDOM from "react-dom/client";
 import "./style/global.css";
 import App from "./App";
 import { Candidate } from "./types/candidate.type";
-import { UserSettings } from "./types/user.types";
 
 // Function to extract data from Razor view safely
 const getAppData = () => {
