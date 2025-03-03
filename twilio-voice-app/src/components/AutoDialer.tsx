@@ -225,7 +225,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
     };
 
     // Enhance makeCall with retry logic
-    const makeCall = async (phoneNumber: string, options?: {
+    const makeCall = async (phoneNumber: string, name?: string, options?: {
         isAutoDial?: boolean,
         index?: number,
     }) => {
@@ -272,7 +272,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                 });
 
                 const call = await device.connect({
-                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName, candidateName: options?.index ? candidateNumbers[options.index].name : '' }
+                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName, candidateName: name || '' }
                 });
 
                 logger.info('Call connection initiated', {
@@ -622,7 +622,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
             });
 
             try {
-                await makeCall(currentNumber.number, {
+                await makeCall(currentNumber.number, currentNumber.name, {
                     isAutoDial: true,
                     index: currentIndex
                 });
