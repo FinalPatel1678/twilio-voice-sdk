@@ -64,6 +64,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">#</th>
+                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Name</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Number</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Status</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Attempt</th>
@@ -77,6 +78,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                 className={`${index === currentIndex ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                             >
                                 <td className="py-3 px-4 text-sm">{index + 1}</td>
+                                <td className="py-3 px-4 text-sm font-medium">{item.name || '-'}</td>
                                 <td className="py-3 px-4 text-sm font-medium">{item.number}</td>
                                 <td className="py-3 px-4">{renderCallStatus(item, index)}</td>
                                 <td className="py-3 px-4">
