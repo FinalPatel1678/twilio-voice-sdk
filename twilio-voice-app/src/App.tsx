@@ -1,8 +1,7 @@
 import React from 'react';
-import AutoDialer from './components/AutoDialer';
-import { Candidate } from './types/candidate.type';
+import AutoDialer, { AutoDialerProps } from './components/AutoDialer';
 
-const App = (props: { apiBaseUrl: string, candidates: Candidate[], userId: string, reqId: string }) => {
+const App = (props: AutoDialerProps) => {
   return (
     <div className="bg-gray-100">
       <AutoDialer {...props} />

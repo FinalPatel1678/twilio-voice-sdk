@@ -19,6 +19,9 @@ const getAppData = () => {
       candidates: JSON.parse(rootElement.dataset.candidates || "[]") as Candidate[],
       userId: JSON.parse(rootElement.dataset.userId || '""'),
       reqId: JSON.parse(rootElement.dataset.reqId || "0"),
+      callerId: JSON.parse(rootElement.dataset.callerId || '""'),
+      userName: JSON.parse(rootElement.dataset.userName || '""'),
+      jobTitleText: JSON.parse(rootElement.dataset.jobTitleText || '""'),
     };
   } catch (error) {
     console.error("Error parsing data attributes:", error);
@@ -37,6 +40,9 @@ if (appData) {
       candidates={appData.candidates}
       userId={appData.userId}
       reqId={appData.reqId}
+      callerId={appData.callerId}
+      userName={appData.userName}
+      jobTitleText={appData.jobTitleText}
     />
   );
 }

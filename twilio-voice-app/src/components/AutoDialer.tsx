@@ -16,15 +16,18 @@ import { Candidate } from '../types/candidate.type';
 
 const localStorageManager = new LocalStorageManager();
 
-interface AutoDialerProps {
+export interface AutoDialerProps {
     apiBaseUrl: string;
     candidates: Candidate[],
     userId: string,
-    reqId: string
+    reqId: string,
+    callerId: string,
+    userName: string,
+    jobTitleText: string
 }
 
 const AutoDialer: React.FC<AutoDialerProps> = ({
-    apiBaseUrl, candidates, userId, reqId }) => {
+    apiBaseUrl, candidates, userId, reqId, callerId, jobTitleText, userName }) => {
     // Existing states from FloatingDialer
     const [device, setDevice] = useState<Device | null>(null);
     const [userState, setUserState] = useState<string>(USER_STATE.OFFLINE);
@@ -268,8 +271,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                 });
 
                 const call = await device.connect({
-                    params: { To: cleanNumber, userId: userId, reqId: reqId },
-                    rtcConstraints: { audio: true }
+                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName }
                 });
 
                 logger.info('Call connection initiated', {
@@ -763,7 +765,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
             {/* Call Summary Modal */}
             {showSummaryModal && completedCallDetails && (
                 <div className="fixed inset-0 z-50 overflow-y-auto">
-                    <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
+                    <div className="fixed inset-0 bg-black opacity-50 transition-opacity" />
                     <div className="flex min-h-full items-center justify-center p-4">
                         <CallSummaryModal
                             isOpen={showSummaryModal}
