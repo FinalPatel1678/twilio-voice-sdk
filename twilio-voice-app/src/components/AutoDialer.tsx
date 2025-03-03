@@ -52,6 +52,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
     const [candidateNumbers, setCandidateNumbers] = useState<CandidateNumber[]>(candidates.map((candidate) => ({
         id: candidate.CandidateID.toString(),
         number: candidate.Mobile,
+        name: `${candidate.FirstName} ${candidate.LastName}`.trim(),
         status: 'pending'
     })));
 
@@ -271,7 +272,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                 });
 
                 const call = await device.connect({
-                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName }
+                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName, candidateName: options?.index ? candidateNumbers[options.index].name : '' }
                 });
 
                 logger.info('Call connection initiated', {

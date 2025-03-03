@@ -1,1 +1,1 @@
-export interface Candidate { CandidateID: number; Mobile: string }
+export interface Candidate { CandidateID: number; Mobile: string, FirstName:string, LastName:string }
