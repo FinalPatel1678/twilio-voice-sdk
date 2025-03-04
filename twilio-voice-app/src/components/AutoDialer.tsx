@@ -8,7 +8,6 @@ import ManualDialer from './ManualDialer';
 import AutoDialControls from './AutoDialControls';
 import CallQueue from './CallQueue';
 import ErrorDisplay from './ErrorDisplay';
-import CallSummaryModal, { CallSummaryData } from './CallSummaryModal';
 import logger from '../utils/logger';
 import { CandidateNumber, CallAttempt, AutoDialState } from '../types/call.types';
 import { USER_STATE } from '../types/call.types';
@@ -71,11 +70,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
 
     // Add new state for modal
     const [showSummaryModal, setShowSummaryModal] = useState(false);
-    const [completedCallDetails, setCompletedCallDetails] = useState<{
-        phoneNumber: string;
-        duration: number;
-        timestamp: number;
-    } | null>(null);
 
     // Add this state to track if a call is being initiated
     const [isInitiatingCall, setIsInitiatingCall] = useState(false);
@@ -84,6 +78,13 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
         index: number;
         status: string;
     } | null>(null);
+
+    useEffect(() => {
+        window.CallDetailsModalClose = () => {
+            console.log("React: CallDetailsModalClose() executed!");
+            handleCallSummarySubmit()
+        };
+    }, []);
 
     useEffect(() => {
         initializeDevice();
@@ -514,11 +515,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
 
                 // Show summary modal for successful human-answered calls only
                 if (callStatus === 'success') {
-                    setCompletedCallDetails({
-                        phoneNumber: currentNumber,
-                        duration,
-                        timestamp: startTime
-                    });
+                    window.triggerCallDetailsModal()
                     setShowSummaryModal(true);
                 } else {
                     resetCallStates();
@@ -638,12 +635,10 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
     }, [autoDialState.isActive, autoDialState.isPaused, autoDialState.currentIndex, device, isDeviceReady, activeCall, showSummaryModal]);
 
     // Add new function to handle call summary submission
-    const handleCallSummarySubmit = async (summaryData: CallSummaryData) => {
+    const handleCallSummarySubmit = async () => {
         try {
-            logger.info('Saving call summary:', summaryData);
             resetCallStates();
             setShowSummaryModal(false);
-            setCompletedCallDetails(null);
 
             if (autoDialState.isActive) {
                 processNextAutoDialCall();
@@ -762,28 +757,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                     </div>
                 </div>
             </div>
-
-            {/* Call Summary Modal */}
-            {showSummaryModal && completedCallDetails && (
-                <div className="fixed inset-0 z-50 overflow-y-auto">
-                    <div className="fixed inset-0 bg-black opacity-50 transition-opacity" />
-                    <div className="flex min-h-full items-center justify-center p-4">
-                        <CallSummaryModal
-                            isOpen={showSummaryModal}
-                            callDetails={completedCallDetails}
-                            onClose={() => handleCallSummarySubmit({
-                                notes: '',
-                                outcome: 'no-answer',
-                                phoneNumber: '',
-                                duration: 0,
-                                timestamp: 0,
-                                followUpRequired: false
-                            })}
-                            onSubmit={handleCallSummarySubmit}
-                        />
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
