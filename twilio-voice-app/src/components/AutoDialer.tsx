@@ -15,6 +15,36 @@ import { Candidate } from '../types/candidate.type';
 
 const localStorageManager = new LocalStorageManager();
 
+// Replace the simple Set with a class for managing dialed numbers
+class DialedNumbersManager {
+    private storage: Map<string, Set<string>> = new Map();
+
+    // Create a unique key combining candidateId and number
+    private createKey(candidateId: string, number: string): string {
+        return `${candidateId}:${number}`;
+    }
+
+    add(candidateId: string, number: string): void {
+        const key = this.createKey(candidateId, number);
+        if (!this.storage.has(candidateId)) {
+            this.storage.set(candidateId, new Set());
+        }
+        this.storage.get(candidateId)?.add(number);
+    }
+
+    has(candidateId: string, number: string): boolean {
+        const numbers = this.storage.get(candidateId);
+        return numbers?.has(number) ?? false;
+    }
+
+    clear(): void {
+        this.storage.clear();
+    }
+}
+
+// Replace the simple dialedNumbersSet with the new manager
+const dialedNumbersManager = new DialedNumbersManager();
+
 export interface AutoDialerProps {
     apiBaseUrl: string;
     candidates: Candidate[],
@@ -78,6 +108,9 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
         index: number;
         status: string;
     } | null>(null);
+
+    // Add this near the top of the component, after the state declarations
+    const [processingCandidates] = useState(() => new Set<string>());
 
     useEffect(() => {
         window.CallDetailsModalClose = () => {
@@ -401,6 +434,11 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
     // Add new error handling functions
     const handleCallError = async (error: any, index: number) => {
         logger.error('Call failed', { index, error });
+
+        const currentNumber = candidateNumbers[index];
+        // Remove from processing set
+        processingCandidates.delete(currentNumber.id);
+
         // Update status and move to next number immediately
         setCandidateNumbers(prev => {
             const updated = [...prev];
@@ -461,10 +499,17 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
         });
     };
 
+    // Modify handleCallSuccess to use the external Set
     const handleCallSuccess = async (callSid: string, index: number, duration: number) => {
         logger.info('Call completed successfully', { index, duration, callSid });
 
-        const currentNumber = candidateNumbers[index].number;
+        const currentNumber = candidateNumbers[index];
+        // Add number to dialed numbers manager instead of the Set
+        dialedNumbersManager.add(currentNumber.id, currentNumber.number);
+
+        // Remove from processing set
+        processingCandidates.delete(currentNumber.id);
+
         const startTime = Date.now() - duration;
 
         // Set initial attempt data
@@ -557,6 +602,8 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
             lastError: undefined
         }));
 
+        // Clear the dialed numbers manager instead of the Set
+        dialedNumbersManager.clear();
         setCandidateNumbers(resetNumbers);
         setAutoDialState({
             isActive: true,
@@ -573,7 +620,9 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
         setAutoDialState(prev => ({ ...prev, isPaused: false }));
     };
 
+    // Modify stopAutoDial to clear processing set
     const stopAutoDial = () => {
+        processingCandidates.clear();
         setAutoDialState({
             isActive: false,
             isPaused: false,
@@ -587,6 +636,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
     };
 
     // Add new useEffect for auto-dialing logic
+    // Modify the auto-dial effect to use the external Set
     useEffect(() => {
         const processNextCall = async () => {
             if (!autoDialState.isActive ||
@@ -608,7 +658,33 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
 
             const currentNumber = candidateNumbers[currentIndex];
 
-            // Update status to in-progress
+            // Add check for currently processing candidates
+            if (processingCandidates.has(currentNumber.id)) {
+                logger.warn('Candidate already being processed, skipping', {
+                    candidateId: currentNumber.id,
+                    index: currentIndex
+                });
+                setAutoDialState(prev => ({
+                    ...prev,
+                    currentIndex: prev.currentIndex + 1
+                }));
+                return;
+            }
+
+            // Check if number has already been dialed using the external Set
+            if (dialedNumbersManager.has(currentNumber.id, currentNumber.number)) {
+                logger.warn('Number already dialed, skipping to next', {
+                    candidateId: currentNumber.id,
+                    number: currentNumber.number,
+                    index: currentIndex
+                });
+                setAutoDialState(prev => ({
+                    ...prev,
+                    currentIndex: prev.currentIndex + 1
+                }));
+                return;
+            }
+
             setCandidateNumbers(prev => {
                 const updated = [...prev];
                 updated[currentIndex] = {
@@ -618,13 +694,17 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                 return updated;
             });
 
+            // Add candidate to processing set
+            processingCandidates.add(currentNumber.id);
+
             try {
                 await makeCall(currentNumber.number, currentNumber.name, {
                     isAutoDial: true,
                     index: currentIndex
                 });
-            } catch (error: any) {
-                logger.error('Auto-dial call failed:', error);
+            } catch (error) {
+                // Remove from processing set on error
+                processingCandidates.delete(currentNumber.id);
                 handleCallError(error, currentIndex);
             }
         };
