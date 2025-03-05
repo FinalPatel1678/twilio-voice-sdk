@@ -546,7 +546,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                     callStatus = 'failed';
                 } else if (callDetails.status === 'canceled') {
                     callStatus = 'canceled';
-                } else if (callDetails.answeredBy?.includes('machine')) {
+                } else if (callDetails.AnsweredBy?.includes('machine')) {
                     callStatus = 'voicemail';
                 }
 
@@ -554,7 +554,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                 const finalAttempt: CallAttempt = {
                     ...attempt,
                     status: callStatus,
-                    recordings: callDetails.recordings || [],
                     error: callDetails.error,
                 };
 

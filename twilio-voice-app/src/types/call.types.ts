@@ -17,7 +17,6 @@ export interface CallAttempt {
     callSid?: string;
     answerTime?: number;
     endTime?: number;
-    recordings?: string[];
 }
 
 export interface CandidateNumber {
