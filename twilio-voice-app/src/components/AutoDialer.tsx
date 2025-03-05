@@ -83,7 +83,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
         id: candidate.CandidateID.toString(),
         number: candidate.Mobile,
         name: `${candidate.FirstName} ${candidate.LastName}`.trim(),
-        selectionId: candidate.SelectionId,
+        selectionId: candidate.SelectionID,
         status: 'pending'
     })));
 

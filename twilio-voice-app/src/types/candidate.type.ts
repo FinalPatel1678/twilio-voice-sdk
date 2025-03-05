@@ -1,3 +1,3 @@
 export interface Candidate {
-    CandidateID: number; Mobile: string, FirstName: string, LastName: string, SelectionId: string
+    CandidateID: number; Mobile: string, FirstName: string, LastName: string, SelectionID: string
 }
