@@ -22,6 +22,7 @@ const getAppData = () => {
       callerId: JSON.parse(rootElement.dataset.callerId || '""'),
       userName: JSON.parse(rootElement.dataset.userName || '""'),
       jobTitleText: JSON.parse(rootElement.dataset.jobTitleText || '""'),
+      companyId: JSON.parse(rootElement.dataset.companyId || '""'),
     };
   } catch (error) {
     console.error("Error parsing data attributes:", error);
@@ -36,13 +37,7 @@ if (appData) {
   const root = ReactDOM.createRoot(document.getElementById("twilio-auto-dialer-root")!);
   root.render(
     <App
-      apiBaseUrl={appData.apiBaseUrl}
-      candidates={appData.candidates}
-      userId={appData.userId}
-      reqId={appData.reqId}
-      callerId={appData.callerId}
-      userName={appData.userName}
-      jobTitleText={appData.jobTitleText}
+      {...appData}
     />
   );
 }

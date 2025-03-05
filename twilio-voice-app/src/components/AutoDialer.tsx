@@ -52,11 +52,12 @@ export interface AutoDialerProps {
     reqId: string,
     callerId: string,
     userName: string,
-    jobTitleText: string
+    jobTitleText: string,
+    companyId: string
 }
 
 const AutoDialer: React.FC<AutoDialerProps> = ({
-    apiBaseUrl, candidates, userId, reqId, callerId, jobTitleText, userName }) => {
+    apiBaseUrl, candidates, userId, reqId, callerId, jobTitleText, userName, companyId }) => {
     // Existing states from FloatingDialer
     const [device, setDevice] = useState<Device | null>(null);
     const [userState, setUserState] = useState<string>(USER_STATE.OFFLINE);
@@ -307,7 +308,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                 });
 
                 const call = await device.connect({
-                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName, candidateName: name || '', selectionId: selectionId || '' }
+                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName, candidateName: name || '', selectionId: selectionId || '', companyId: companyId }
                 });
 
                 logger.info('Call connection initiated', {
