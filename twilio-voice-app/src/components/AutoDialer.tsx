@@ -82,6 +82,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
         id: candidate.CandidateID.toString(),
         number: candidate.Mobile,
         name: `${candidate.FirstName} ${candidate.LastName}`.trim(),
+        selectionId: candidate.SelectionId,
         status: 'pending'
     })));
 
@@ -259,7 +260,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
     };
 
     // Enhance makeCall with retry logic
-    const makeCall = async (phoneNumber: string, name?: string, options?: {
+    const makeCall = async (phoneNumber: string, name?: string, selectionId?: string, options?: {
         isAutoDial?: boolean,
         index?: number,
     }) => {
@@ -306,7 +307,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                 });
 
                 const call = await device.connect({
-                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName, candidateName: name || '' }
+                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName, candidateName: name || '', selectionId: selectionId || '' }
                 });
 
                 logger.info('Call connection initiated', {
@@ -560,7 +561,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
 
                 // Show summary modal for successful human-answered calls only
                 if (callStatus === 'success') {
-                    window.triggerCallDetailsModal()
+                    window.triggerCallDetailsModal(currentNumber.selectionId)
                     setShowSummaryModal(true);
                 } else {
                     resetCallStates();
@@ -698,7 +699,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
             processingCandidates.add(currentNumber.id);
 
             try {
-                await makeCall(currentNumber.number, currentNumber.name, {
+                await makeCall(currentNumber.number, currentNumber.name, currentNumber.selectionId, {
                     isAutoDial: true,
                     index: currentIndex
                 });

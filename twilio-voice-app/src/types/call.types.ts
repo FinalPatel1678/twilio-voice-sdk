@@ -23,7 +23,8 @@ export interface CallAttempt {
 export interface CandidateNumber {
     id:string,
     number: string;
-    name:string
+    name:string,
+    selectionId:string,
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
     attempt?: CallAttempt;
     lastError?: string;
