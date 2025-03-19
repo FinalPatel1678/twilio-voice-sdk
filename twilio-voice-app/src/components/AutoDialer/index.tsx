@@ -28,12 +28,46 @@ export interface AutoDialerProps {
     companyId: string
 }
 
-const AutoDialer: React.FC<AutoDialerProps> = ({
-    apiBaseUrl, candidates, userId, reqId, callerId, jobTitleText, userName, companyId }) => {
-    // Existing states from FloatingDialer
+const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId, reqId, callerId, jobTitleText, userName, companyId }) => {
     const {
-        activeCall, autoDialState, candidateNumbers, device, isDeviceReady, isInitialized, isOnCall, isLoading, phoneNumber, setPhoneNumber, callDetailLoading, callStartTime, elapsedTime, errorMessage, errors, isInitiatingCall, isMuted, processingCandidates, setActiveCall, setAutoDialState, setCallDetailLoading, setCallStartTime, setCandidateNumbers, setDevice, setElapsedTime, setErrorMessage, setErrors, setIsDeviceReady, setIsInitialized, setIsInitiatingCall, setIsLoading, setIsMuted, setIsOnCall, setUserState, showSummaryModal, userState, setShowSummaryModal, timerRef,
+        // States
+        userState, setUserState,
+        phoneNumber, setPhoneNumber,
+        isMuted, setIsMuted,
+        isLoading, setIsLoading,
+        elapsedTime, setElapsedTime,
+        isOnCall, setIsOnCall,
+        candidateNumbers, setCandidateNumbers,
+        autoDialState, setAutoDialState,
+        callDetailLoading, setCallDetailLoading,
+
+        // Getter/setter functions
+        getDevice, setDevice,
+        getActiveCall, setActiveCall,
+        getIsInitialized, setIsInitialized,
+        getIsDeviceReady, setIsDeviceReady,
+        getCallStartTime, setCallStartTime,
+        getIsInitiatingCall, setIsInitiatingCall,
+        getErrorMessage, setErrorMessage,
+        getErrors, setErrors,
+        getShowSummaryModal, setShowSummaryModal,
+
+        // Direct ref access
+        timerRef,
+        processingCandidatesRef
     } = useAutoDialerState({ localStorageManager, candidates });
+
+    // Replace all direct state accesses with their getter functions
+    const device = getDevice();
+    const activeCall = getActiveCall();
+    const isDeviceReady = getIsDeviceReady();
+    const isInitialized = getIsInitialized();
+    const isInitiatingCall = getIsInitiatingCall();
+    const callStartTime = getCallStartTime();
+    const errorMessage = getErrorMessage();
+    const errors = getErrors();
+    const showSummaryModal = getShowSummaryModal();
+    const processingCandidates = processingCandidatesRef.current
 
     useEffect(() => {
         window.CallDetailsModalClose = () => {
@@ -133,7 +167,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                     state: { isInitialized, isDeviceReady, userState }
                 });
                 const errorMessage = error.message || 'Failed to initialize device';
-                setErrors(prev => ({ ...prev, device: errorMessage }));
+                setErrors({ ...errors, device: errorMessage });
                 setUserState(USER_STATE.OFFLINE);
                 setIsDeviceReady(false);
             } finally {
@@ -467,7 +501,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
                     callStatus = 'failed';
                 } else if (callDetails.status === 'canceled') {
                     callStatus = 'canceled';
-                } else if (callDetails.AnsweredBy?.includes('machine')) {
+                } else if (callDetails.answered_by?.includes('machine')) {
                     callStatus = 'voicemail';
                 }
 
@@ -554,7 +588,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
 
     // Add error dismissal handlers
     const dismissError = (type: keyof typeof errors) => {
-        setErrors(prev => ({ ...prev, [type]: undefined }));
+        setErrors({ ...errors, [type]: undefined });
     };
 
     // Add new useEffect for auto-dialing logic
@@ -762,5 +796,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({
         </div>
     );
 };
+
 
 export default AutoDialer;

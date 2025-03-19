@@ -6,26 +6,30 @@ import { Candidate } from '../../types/candidate.type';
 import LocalStorageManager from '../../services/localStorageManager';
 
 const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageManager: LocalStorageManager, candidates: Candidate[] }) => {
-    const [device, setDevice] = useState<Device | null>(null);
+    // Convert to refs (these don't need re-renders)
+    const deviceRef = useRef<Device | null>(null);
+    const activeCallRef = useRef<Call | null>(null);
+    const isInitializedRef = useRef(false);
+    const isDeviceReadyRef = useRef(false);
+    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const callStartTimeRef = useRef<number | null>(null);
+    const processingCandidatesRef = useRef(new Set<string>());
+    const isInitiatingCallRef = useRef(false);
+    const errorMessageRef = useRef<string>('');
+    const errorsRef = useRef<{
+        device?: string;
+        call?: string;
+        validation?: string;
+    }>({});
+    const showSummaryModalRef = useRef<boolean>(false);
+
+    // Keep as states (these need UI updates)
     const [userState, setUserState] = useState<string>(USER_STATE.OFFLINE);
     const [phoneNumber, setPhoneNumber] = useState<string>('');
-    const [activeCall, setActiveCall] = useState<Call | null>(null);
     const [isMuted, setIsMuted] = useState<boolean>(false);
-    const [errorMessage, setErrorMessage] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
-
-    const [isInitialized, setIsInitialized] = useState(false);
-    const [isDeviceReady, setIsDeviceReady] = useState(false);
-
-    // Timer states
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
-    const [callStartTime, setCallStartTime] = useState<number | null>(null);
     const [elapsedTime, setElapsedTime] = useState<number>(0);
-
     const [isOnCall, setIsOnCall] = usePersistor<boolean>('isOnCall', false, localStorageManager);
-
-    // Enhanced states for better error handling
-    // Update initial test numbers state without retry
     const [candidateNumbers, setCandidateNumbers] = useState<CandidateNumber[]>(candidates.map((candidate) => ({
         id: candidate.CandidateID.toString(),
         number: candidate.Mobile,
@@ -33,56 +37,78 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
         selectionId: candidate.SelectionID,
         status: 'pending'
     })));
-
     const [autoDialState, setAutoDialState] = useState<AutoDialState>({
         isActive: false,
         isPaused: false,
         currentIndex: 0,
     });
-
-    // Enhanced error handling
-    const [errors, setErrors] = useState<{
-        device?: string;
-        call?: string;
-        validation?: string;
-    }>({});
-
-    // Add new state for modal
-    const [showSummaryModal, setShowSummaryModal] = useState(false);
-
-    // Add this state to track if a call is being initiated
-    const [isInitiatingCall, setIsInitiatingCall] = useState(false);
-
     const [callDetailLoading, setCallDetailLoading] = useState<{
         index: number;
         status: string;
     } | null>(null);
 
-    // Add this near the top of the component, after the state declarations
-    const [processingCandidates] = useState(() => new Set<string>());
+    // Create getter/setter functions for refs to maintain consistent API
+    const getDevice = () => deviceRef.current;
+    const setDevice = (device: Device | null) => deviceRef.current = device;
+
+    const getActiveCall = () => activeCallRef.current;
+    const setActiveCall = (call: Call | null) => activeCallRef.current = call;
+
+    const getIsInitialized = () => isInitializedRef.current;
+    const setIsInitialized = (value: boolean) => isInitializedRef.current = value;
+
+    const getIsDeviceReady = () => isDeviceReadyRef.current;
+    const setIsDeviceReady = (value: boolean) => isDeviceReadyRef.current = value;
+
+    const getCallStartTime = () => callStartTimeRef.current;
+    const setCallStartTime = (value: number | null) => callStartTimeRef.current = value;
+
+    const getIsInitiatingCall = () => isInitiatingCallRef.current;
+    const setIsInitiatingCall = (value: boolean) => isInitiatingCallRef.current = value;
+
+    const getErrorMessage = () => errorMessageRef.current;
+    const setErrorMessage = (value: string) => errorMessageRef.current = value;
+
+    const getErrors = () => errorsRef.current;
+    const setErrors = (value: typeof errorsRef.current) => errorsRef.current = value;
+
+    const getShowSummaryModal = () => showSummaryModalRef.current;
+    const setShowSummaryModal = (value: boolean) => showSummaryModalRef.current = value;
 
     return {
-        device,
+        // Getter/setter functions for refs
+        getDevice,
         setDevice,
+        getActiveCall,
+        setActiveCall,
+        getIsInitialized,
+        setIsInitialized,
+        getIsDeviceReady,
+        setIsDeviceReady,
+        getCallStartTime,
+        setCallStartTime,
+        getIsInitiatingCall,
+        setIsInitiatingCall,
+        getErrorMessage,
+        setErrorMessage,
+        getErrors,
+        setErrors,
+        getShowSummaryModal,
+        setShowSummaryModal,
+
+        // Direct ref access where needed
+        timerRef,
+        processingCandidatesRef,
+
+        // States that need UI updates
         userState,
         setUserState,
         phoneNumber,
         setPhoneNumber,
-        activeCall,
-        setActiveCall,
         isMuted,
         setIsMuted,
-        errorMessage,
-        setErrorMessage,
         isLoading,
         setIsLoading,
-        isInitialized,
-        setIsInitialized,
-        isDeviceReady,
-        setIsDeviceReady,
-        timerRef,
-        callStartTime,
-        setCallStartTime,
         elapsedTime,
         setElapsedTime,
         isOnCall,
@@ -91,16 +117,9 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
         setCandidateNumbers,
         autoDialState,
         setAutoDialState,
-        errors,
-        setErrors,
-        showSummaryModal,
-        setShowSummaryModal,
-        isInitiatingCall,
-        setIsInitiatingCall,
         callDetailLoading,
         setCallDetailLoading,
-        processingCandidates
     };
 }
 
-export default useAutoDialerState
+export default useAutoDialerState;
