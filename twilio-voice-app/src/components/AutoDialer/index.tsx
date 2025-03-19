@@ -1,48 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, } from 'react';
 import { Call, Device } from '@twilio/voice-sdk';
-import { fetchCallDetails, getAccessToken } from '../services/twilioService';
-import LocalStorageManager from '../services/localStorageManager';
-import usePersistor from '../hooks/usePersistor';
-import StatusBar from './StatusBar';
-import ManualDialer from './ManualDialer';
-import AutoDialControls from './AutoDialControls';
-import CallQueue from './CallQueue';
-import ErrorDisplay from './ErrorDisplay';
-import logger from '../utils/logger';
-import { CandidateNumber, CallAttempt, AutoDialState } from '../types/call.types';
-import { USER_STATE } from '../types/call.types';
-import { Candidate } from '../types/candidate.type';
+import { fetchCallDetails, getAccessToken } from '../../services/twilioService';
+import LocalStorageManager from '../../services/localStorageManager';
+import StatusBar from '../StatusBar';
+import ManualDialer from '../ManualDialer';
+import AutoDialControls from '../AutoDialControls';
+import CallQueue from '../CallQueue';
+import ErrorDisplay from '../ErrorDisplay';
+import logger from '../../utils/logger';
+import { CandidateNumber, CallAttempt } from '../../types/call.types';
+import { USER_STATE } from '../../types/call.types';
+import { Candidate } from '../../types/candidate.type';
+import DialedNumbersManager from '../../services/dialedNumbersManager';
+import useAutoDialerState from './AutoDialer.State';
 
 const localStorageManager = new LocalStorageManager();
-
-// Replace the simple Set with a class for managing dialed numbers
-class DialedNumbersManager {
-    private storage: Map<string, Set<string>> = new Map();
-
-    // Create a unique key combining candidateId and number
-    private createKey(candidateId: string, number: string): string {
-        return `${candidateId}:${number}`;
-    }
-
-    add(candidateId: string, number: string): void {
-        const key = this.createKey(candidateId, number);
-        if (!this.storage.has(candidateId)) {
-            this.storage.set(candidateId, new Set());
-        }
-        this.storage.get(candidateId)?.add(number);
-    }
-
-    has(candidateId: string, number: string): boolean {
-        const numbers = this.storage.get(candidateId);
-        return numbers?.has(number) ?? false;
-    }
-
-    clear(): void {
-        this.storage.clear();
-    }
-}
-
-// Replace the simple dialedNumbersSet with the new manager
 const dialedNumbersManager = new DialedNumbersManager();
 
 export interface AutoDialerProps {
@@ -59,60 +31,9 @@ export interface AutoDialerProps {
 const AutoDialer: React.FC<AutoDialerProps> = ({
     apiBaseUrl, candidates, userId, reqId, callerId, jobTitleText, userName, companyId }) => {
     // Existing states from FloatingDialer
-    const [device, setDevice] = useState<Device | null>(null);
-    const [userState, setUserState] = useState<string>(USER_STATE.OFFLINE);
-    const [phoneNumber, setPhoneNumber] = useState<string>('');
-    const [activeCall, setActiveCall] = useState<Call | null>(null);
-    const [isMuted, setIsMuted] = useState<boolean>(false);
-    const [errorMessage, setErrorMessage] = useState<string>('');
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-
-    const [isInitialized, setIsInitialized] = useState(false);
-    const [isDeviceReady, setIsDeviceReady] = useState(false);
-
-    // Timer states
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
-    const [callStartTime, setCallStartTime] = useState<number | null>(null);
-    const [elapsedTime, setElapsedTime] = useState<number>(0);
-
-    const [isOnCall, setIsOnCall] = usePersistor<boolean>('isOnCall', false, localStorageManager);
-
-    // Enhanced states for better error handling
-    // Update initial test numbers state without retry
-    const [candidateNumbers, setCandidateNumbers] = useState<CandidateNumber[]>(candidates.map((candidate) => ({
-        id: candidate.CandidateID.toString(),
-        number: candidate.Mobile,
-        name: `${candidate.FirstName} ${candidate.LastName}`.trim(),
-        selectionId: candidate.SelectionID,
-        status: 'pending'
-    })));
-
-    const [autoDialState, setAutoDialState] = useState<AutoDialState>({
-        isActive: false,
-        isPaused: false,
-        currentIndex: 0,
-    });
-
-    // Enhanced error handling
-    const [errors, setErrors] = useState<{
-        device?: string;
-        call?: string;
-        validation?: string;
-    }>({});
-
-    // Add new state for modal
-    const [showSummaryModal, setShowSummaryModal] = useState(false);
-
-    // Add this state to track if a call is being initiated
-    const [isInitiatingCall, setIsInitiatingCall] = useState(false);
-
-    const [callDetailLoading, setCallDetailLoading] = useState<{
-        index: number;
-        status: string;
-    } | null>(null);
-
-    // Add this near the top of the component, after the state declarations
-    const [processingCandidates] = useState(() => new Set<string>());
+    const {
+        activeCall, autoDialState, candidateNumbers, device, isDeviceReady, isInitialized, isOnCall, isLoading, phoneNumber, setPhoneNumber, callDetailLoading, callStartTime, elapsedTime, errorMessage, errors, isInitiatingCall, isMuted, processingCandidates, setActiveCall, setAutoDialState, setCallDetailLoading, setCallStartTime, setCandidateNumbers, setDevice, setElapsedTime, setErrorMessage, setErrors, setIsDeviceReady, setIsInitialized, setIsInitiatingCall, setIsLoading, setIsMuted, setIsOnCall, setUserState, showSummaryModal, userState, setShowSummaryModal, timerRef,
+    } = useAutoDialerState({ localStorageManager, candidates });
 
     useEffect(() => {
         window.CallDetailsModalClose = () => {

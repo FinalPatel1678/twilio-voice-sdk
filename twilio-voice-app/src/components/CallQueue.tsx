@@ -3,6 +3,11 @@ import { X } from 'lucide-react';
 import { CandidateNumber, CallDetailLoading } from '../types/call.types';
 import LoadingSpinner from './LoadingSpinner';
 
+// Add type safety for status values
+type CallStatus = 'success' | 'voicemail' | 'no-answer' | 'busy' | 'failed' | 
+    'canceled' | 'rejected' | 'invalid-number' | 'error';
+type QueueStatus = 'completed' | 'in-progress' | 'failed' | 'pending';
+
 interface CallQueueProps {
     candidateNumbers: CandidateNumber[];
     currentIndex: number;
@@ -18,20 +23,47 @@ const CallQueue: React.FC<CallQueueProps> = ({
     isAutoDialActive,
     onRemoveNumber
 }) => {
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'success': return 'bg-green-100 text-green-800';
-            case 'voicemail': return 'bg-yellow-100 text-yellow-800';
-            case 'no-answer': return 'bg-orange-100 text-orange-800';
-            case 'busy': return 'bg-purple-100 text-purple-800';
-            case 'failed': return 'bg-red-100 text-red-800';
-            case 'canceled': return 'bg-gray-100 text-gray-800';
-            case 'rejected': return 'bg-red-100 text-red-800';
-            case 'invalid-number': return 'bg-red-100 text-red-800';
-            case 'error': return 'bg-red-100 text-red-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
+    const getCallStatusColor = (status: CallStatus) => {
+        const colorMap: Record<CallStatus, string> = {
+            'success': 'bg-green-100 text-green-800',
+            'voicemail': 'bg-yellow-100 text-yellow-800',
+            'no-answer': 'bg-orange-100 text-orange-800',
+            'busy': 'bg-purple-100 text-purple-800',
+            'failed': 'bg-red-100 text-red-800',
+            'canceled': 'bg-gray-100 text-gray-800',
+            'rejected': 'bg-red-100 text-red-800',
+            'invalid-number': 'bg-red-100 text-red-800',
+            'error': 'bg-red-100 text-red-800'
+        };
+        return colorMap[status] || 'bg-gray-100 text-gray-800';
     };
+
+    const getQueueStatusColor = (status: QueueStatus) => {
+        const colorMap: Record<QueueStatus, string> = {
+            'completed': 'bg-green-100 text-green-800',
+            'in-progress': 'bg-blue-100 text-blue-800',
+            'failed': 'bg-red-100 text-red-800',
+            'pending': 'bg-gray-100 text-gray-800'
+        };
+        return colorMap[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    const formatTimestamp = (timestamp: number) => {
+        return new Date(timestamp).toLocaleTimeString();
+    };
+
+    const formatDuration = (duration: number) => {
+        const seconds = Math.round(duration / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    };
+
+    const renderQueueStatus = (item: CandidateNumber) => (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getQueueStatusColor(item.status as QueueStatus)}`}>
+            {item.status}
+        </span>
+    );
 
     const renderCallStatus = (item: CandidateNumber, index: number) => {
         if (callDetailLoading?.index === index) {
@@ -43,15 +75,11 @@ const CallQueue: React.FC<CallQueueProps> = ({
             );
         }
 
-        return (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                ${item.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    item.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                        item.status === 'failed' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'}`}>
-                {item.status}
+        return item.attempt?.status ? (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getCallStatusColor(item.attempt.status as CallStatus)}`}>
+                {item.attempt.status}
             </span>
-        );
+        ) : null;
     };
 
     return (
@@ -66,8 +94,10 @@ const CallQueue: React.FC<CallQueueProps> = ({
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">#</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Name</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Number</th>
-                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Status</th>
-                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Attempt</th>
+                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Queue Status</th>
+                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Call Status</th>
+                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Duration</th>
+                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Time</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Actions</th>
                         </tr>
                     </thead>
@@ -80,13 +110,17 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                 <td className="py-3 px-4 text-sm">{index + 1}</td>
                                 <td className="py-3 px-4 text-sm font-medium">{item.name || '-'}</td>
                                 <td className="py-3 px-4 text-sm font-medium">{item.number}</td>
+                                <td className="py-3 px-4">{renderQueueStatus(item)}</td>
                                 <td className="py-3 px-4">{renderCallStatus(item, index)}</td>
-                                <td className="py-3 px-4">
+                                <td className="py-3 px-4 text-sm">
+                                    {item.attempt?.duration && formatDuration(item.attempt.duration)}
+                                </td>
+                                <td className="py-3 px-4 text-sm">
                                     {item.attempt && (
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.attempt.status)}`}>
-                                            {item.attempt.status}
-                                            {item.attempt.duration && ` (${Math.round(item.attempt.duration / 1000)}s)`}
-                                        </span>
+                                        <div className="flex flex-col text-xs text-gray-500">
+                                            <span>Start: {item.attempt.answerTime ? formatTimestamp(item.attempt.answerTime) : '-'}</span>
+                                            <span>End: {item.attempt.endTime ? formatTimestamp(item.attempt.endTime) : '-'}</span>
+                                        </div>
                                     )}
                                 </td>
                                 <td className="py-3 px-4">

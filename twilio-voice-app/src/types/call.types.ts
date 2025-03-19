@@ -1,22 +1,12 @@
-
 export interface CallAttempt {
     timestamp: number;
+    status: string;
     duration?: number;
-    status:
-    | 'success'
-    | 'voicemail'
-    | 'no-answer'
-    | 'busy'
-    | 'failed'
-    | 'canceled'
-    | 'rejected'
-    | 'invalid-number'
-    | 'error';
-    error?: string;
-    attempts?: number;
     callSid?: string;
+    error?: string;
     answerTime?: number;
     endTime?: number;
+    attempts?: number;
 }
 
 export interface CandidateNumber {
