@@ -14,6 +14,7 @@ export interface CandidateNumber {
     number: string;
     name:string,
     selectionId:string,
+    multipleSelectionId:string,
     status: 'pending' | 'in-progress' | 'completed' | 'failed';
     attempt?: CallAttempt;
     lastError?: string;
