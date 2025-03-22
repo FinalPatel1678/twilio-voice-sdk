@@ -72,9 +72,15 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
     useEffect(() => {
         window.CallDetailsModalClose = () => {
             console.log("React: CallDetailsModalClose() executed!");
-            handleCallSummarySubmit()
+
+            resetCallStates();
+            setShowSummaryModal(false);
+
+            if (autoDialState.isActive) {
+                processNextAutoDialCall();
+            }
         };
-    }, []);
+    }, [autoDialState.isActive]);
 
     useEffect(() => {
         initializeDevice();
@@ -669,21 +675,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             processNextCall();
         }
     }, [autoDialState.isActive, autoDialState.isPaused, autoDialState.currentIndex, device, isDeviceReady, activeCall, showSummaryModal]);
-
-    // Add new function to handle call summary submission
-    const handleCallSummarySubmit = async () => {
-        try {
-            resetCallStates();
-            setShowSummaryModal(false);
-
-            if (autoDialState.isActive) {
-                processNextAutoDialCall();
-            }
-        } catch (error) {
-            logger.error('Error saving call summary:', error);
-            setErrorMessage('Failed to save call summary');
-        }
-    };
 
     // Add logging to auto-dial state changes
     useEffect(() => {
