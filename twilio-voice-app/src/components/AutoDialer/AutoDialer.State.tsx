@@ -15,12 +15,6 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
     const callStartTimeRef = useRef<number | null>(null);
     const processingCandidatesRef = useRef(new Set<string>());
     const isInitiatingCallRef = useRef(false);
-    const errorMessageRef = useRef<string>('');
-    const errorsRef = useRef<{
-        device?: string;
-        call?: string;
-        validation?: string;
-    }>({});
     const showSummaryModalRef = useRef<boolean>(false);
 
     // Keep as states (these need UI updates)
@@ -47,6 +41,12 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
         index: number;
         status: string;
     } | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string>('');
+    const [errors, setErrors] = useState<{
+        device?: string;
+        call?: string;
+        validation?: string;
+    }>({});
 
     // Create getter/setter functions for refs to maintain consistent API
     const getDevice = () => deviceRef.current;
@@ -67,12 +67,6 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
     const getIsInitiatingCall = () => isInitiatingCallRef.current;
     const setIsInitiatingCall = (value: boolean) => isInitiatingCallRef.current = value;
 
-    const getErrorMessage = () => errorMessageRef.current;
-    const setErrorMessage = (value: string) => errorMessageRef.current = value;
-
-    const getErrors = () => errorsRef.current;
-    const setErrors = (value: typeof errorsRef.current) => errorsRef.current = value;
-
     const getShowSummaryModal = () => showSummaryModalRef.current;
     const setShowSummaryModal = (value: boolean) => showSummaryModalRef.current = value;
 
@@ -90,10 +84,6 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
         setCallStartTime,
         getIsInitiatingCall,
         setIsInitiatingCall,
-        getErrorMessage,
-        setErrorMessage,
-        getErrors,
-        setErrors,
         getShowSummaryModal,
         setShowSummaryModal,
 
@@ -120,6 +110,10 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
         setAutoDialState,
         callDetailLoading,
         setCallDetailLoading,
+        errorMessage,
+        setErrorMessage,
+        errors,
+        setErrors,
     };
 }
 

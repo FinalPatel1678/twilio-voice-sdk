@@ -40,6 +40,8 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         candidateNumbers, setCandidateNumbers,
         autoDialState, setAutoDialState,
         callDetailLoading, setCallDetailLoading,
+        errorMessage, setErrorMessage,
+        errors, setErrors,
 
         // Getter/setter functions
         getDevice, setDevice,
@@ -48,8 +50,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         getIsDeviceReady, setIsDeviceReady,
         getCallStartTime, setCallStartTime,
         getIsInitiatingCall, setIsInitiatingCall,
-        getErrorMessage, setErrorMessage,
-        getErrors, setErrors,
         getShowSummaryModal, setShowSummaryModal,
 
         // Direct ref access
@@ -64,8 +64,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
     const isInitialized = getIsInitialized();
     const isInitiatingCall = getIsInitiatingCall();
     const callStartTime = getCallStartTime();
-    const errorMessage = getErrorMessage();
-    const errors = getErrors();
     const showSummaryModal = getShowSummaryModal();
     const processingCandidates = processingCandidatesRef.current
 
@@ -173,7 +171,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     state: { isInitialized, isDeviceReady, userState }
                 });
                 const errorMessage = error.message || 'Failed to initialize device';
-                setErrors({ ...errors, device: errorMessage });
+                setErrors((prev) => ({ ...prev, device: errorMessage }));
                 setUserState(USER_STATE.OFFLINE);
                 setIsDeviceReady(false);
             } finally {
@@ -599,8 +597,12 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
     };
 
     // Add error dismissal handlers
-    const dismissError = (type: keyof typeof errors) => {
-        setErrors({ ...errors, [type]: undefined });
+    const dismissError = (type: keyof typeof errors | 'errorMessage') => {
+        if (type === 'errorMessage') {
+            setErrorMessage('');
+        } else {
+            setErrors((prev) => ({ ...prev, [type]: undefined }));
+        }
     };
 
     // Add new useEffect for auto-dialing logic
@@ -670,8 +672,8 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     isAutoDial: true,
                     index: currentIndex
                 });
-            } catch (error) {
-                setErrorMessage(`Failed to make call: ${error?.message || 'Unknown error'}`);
+            } catch (error: any) {
+                setErrorMessage(`Failed to make call: ${error.message || 'Unknown error'}`);
                 // Remove from processing set on error
                 processingCandidates.delete(currentNumber.id);
                 handleCallError(error, currentIndex);
@@ -749,7 +751,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                             <ErrorDisplay
                                 message={errorMessage}
                                 type="error"
-                                onDismiss={() => setErrorMessage('')}
+                                onDismiss={() => dismissError('errorMessage')}
                             />
                         )}
                     </div>
