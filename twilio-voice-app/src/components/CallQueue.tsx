@@ -97,7 +97,8 @@ const CallQueue: React.FC<CallQueueProps> = ({
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Queue Status</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Call Status</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Duration</th>
-                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Time</th>
+                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Start Time</th>
+                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">End Time</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Actions</th>
                         </tr>
                     </thead>
@@ -116,12 +117,10 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                     {item.attempt?.duration && formatDuration(item.attempt.duration)}
                                 </td>
                                 <td className="py-3 px-4 text-sm">
-                                    {item.attempt && (
-                                        <div className="flex flex-col text-xs text-gray-500">
-                                            <span>Start: {item.attempt.answerTime ? formatTimestamp(item.attempt.answerTime) : '-'}</span>
-                                            <span>End: {item.attempt.endTime ? formatTimestamp(item.attempt.endTime) : '-'}</span>
-                                        </div>
-                                    )}
+                                    {item.attempt?.answerTime ? formatTimestamp(item.attempt.answerTime) : '-'}
+                                </td>
+                                <td className="py-3 px-4 text-sm">
+                                    {item.attempt?.endTime ? formatTimestamp(item.attempt.endTime) : '-'}
                                 </td>
                                 <td className="py-3 px-4">
                                     <button

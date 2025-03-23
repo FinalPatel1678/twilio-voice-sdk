@@ -1,6 +1,6 @@
 import React, { useEffect, } from 'react';
 import { Call, Device } from '@twilio/voice-sdk';
-import { fetchCallDetails, getAccessToken } from '../../services/twilioService';
+import { fetchCallDetails, getAccessToken, isCandidateInCall } from '../../services/twilioService';
 import LocalStorageManager from '../../services/localStorageManager';
 import StatusBar from '../StatusBar';
 import ManualDialer from '../ManualDialer';
@@ -221,7 +221,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         return phoneRegex.test(cleanNumber);
     };
 
-    // Enhance makeCall with retry logic
     const makeCall = async (phoneNumber: string, name?: string, selectionId?: string, multipleSelectionId?: string, options?: {
         isAutoDial?: boolean,
         index?: number,
@@ -259,6 +258,13 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             if (!validatePhoneNumber(cleanNumber)) {
                 logger.warn('Invalid phone number attempted', { cleanNumber });
                 throw new Error('Invalid phone number');
+            }
+
+            // Check if candidate is already in a call
+            const { isInCall } = await isCandidateInCall(cleanNumber);
+            if (isInCall) {
+                logger.warn('Candidate is already in a call', { cleanNumber });
+                throw new Error('Candidate is already in a call');
             }
 
             try {
@@ -344,7 +350,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 if (options?.isAutoDial && options.index !== undefined) {
                     handleCallError(error, options.index);
                 } else {
-                    throw error;
+                    setErrorMessage(error.message || 'Unknown error');
                 }
             }
         } finally {
@@ -665,6 +671,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     index: currentIndex
                 });
             } catch (error) {
+                setErrorMessage(`Failed to make call: ${error?.message || 'Unknown error'}`);
                 // Remove from processing set on error
                 processingCandidates.delete(currentNumber.id);
                 handleCallError(error, currentIndex);

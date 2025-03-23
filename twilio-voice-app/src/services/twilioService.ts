@@ -25,6 +25,16 @@ export const fetchCallDetails = async (apiBaseUrl: string, callSid: string): Pro
   }
 };
 
+export const isCandidateInCall = async (candidatePhone: string): Promise<{ success: boolean, isInCall: boolean }> => {
+  try {
+    const response = await axios.get<{ success: boolean, isInCall: boolean }>(`./IsCandidateInCall`, { params: { candidatePhone } });
+    return response.data;
+  } catch (error) {
+    console.error('Error checking if candidate is in a call:', error);
+    throw error;
+  }
+};
+
 
 
 
