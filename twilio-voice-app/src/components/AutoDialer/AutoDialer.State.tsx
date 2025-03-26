@@ -8,9 +8,7 @@ import LocalStorageManager from '../../services/localStorageManager';
 const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageManager: LocalStorageManager, candidates: Candidate[] }) => {
     // Convert to refs (these don't need re-renders)
     const deviceRef = useRef<Device | null>(null);
-    const activeCallRef = useRef<Call | null>(null);
     const isInitializedRef = useRef(false);
-    const isDeviceReadyRef = useRef(false);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const callStartTimeRef = useRef<number | null>(null);
     const processingCandidatesRef = useRef(new Set<string>());
@@ -18,6 +16,8 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
     const showSummaryModalRef = useRef<boolean>(false);
 
     // Keep as states (these need UI updates)
+    const [isDeviceReady, setIsDeviceReady] = useState<boolean>(false)
+    const [activeCall, setActiveCall] = useState<Call | null>(null)
     const [userState, setUserState] = useState<string>(USER_STATE.OFFLINE);
     const [phoneNumber, setPhoneNumber] = useState<string>('');
     const [isMuted, setIsMuted] = useState<boolean>(false);
@@ -52,14 +52,8 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
     const getDevice = () => deviceRef.current;
     const setDevice = (device: Device | null) => deviceRef.current = device;
 
-    const getActiveCall = () => activeCallRef.current;
-    const setActiveCall = (call: Call | null) => activeCallRef.current = call;
-
     const getIsInitialized = () => isInitializedRef.current;
     const setIsInitialized = (value: boolean) => isInitializedRef.current = value;
-
-    const getIsDeviceReady = () => isDeviceReadyRef.current;
-    const setIsDeviceReady = (value: boolean) => isDeviceReadyRef.current = value;
 
     const getCallStartTime = () => callStartTimeRef.current;
     const setCallStartTime = (value: number | null) => callStartTimeRef.current = value;
@@ -74,12 +68,8 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
         // Getter/setter functions for refs
         getDevice,
         setDevice,
-        getActiveCall,
-        setActiveCall,
         getIsInitialized,
         setIsInitialized,
-        getIsDeviceReady,
-        setIsDeviceReady,
         getCallStartTime,
         setCallStartTime,
         getIsInitiatingCall,
@@ -92,6 +82,10 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
         processingCandidatesRef,
 
         // States that need UI updates
+        isDeviceReady,
+        setIsDeviceReady,
+        activeCall,
+        setActiveCall,
         userState,
         setUserState,
         phoneNumber,

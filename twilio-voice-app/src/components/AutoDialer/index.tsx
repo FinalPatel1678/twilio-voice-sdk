@@ -42,12 +42,12 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         callDetailLoading, setCallDetailLoading,
         errorMessage, setErrorMessage,
         errors, setErrors,
+        activeCall, setActiveCall,
+        isDeviceReady, setIsDeviceReady,
 
         // Getter/setter functions
         getDevice, setDevice,
-        getActiveCall, setActiveCall,
         getIsInitialized, setIsInitialized,
-        getIsDeviceReady, setIsDeviceReady,
         getCallStartTime, setCallStartTime,
         getIsInitiatingCall, setIsInitiatingCall,
         getShowSummaryModal, setShowSummaryModal,
@@ -59,8 +59,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
 
     // Replace all direct state accesses with their getter functions
     const device = getDevice();
-    const activeCall = getActiveCall();
-    const isDeviceReady = getIsDeviceReady();
     const isInitialized = getIsInitialized();
     const isInitiatingCall = getIsInitiatingCall();
     const callStartTime = getCallStartTime();
