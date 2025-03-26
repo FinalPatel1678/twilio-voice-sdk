@@ -257,10 +257,10 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             }
 
             // Check if candidate is already in a call
-            const { isInCall } = await isCandidateInCall(cleanNumber);
+            const { isInCall, message } = await isCandidateInCall(cleanNumber);
             if (isInCall) {
                 logger.warn('Candidate is already in a call', { cleanNumber });
-                throw new Error('Candidate is already in a call');
+                throw new Error(message || 'Candidate is already in a call with another recruiter');
             }
 
             try {

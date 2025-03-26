@@ -82,6 +82,21 @@ const CallQueue: React.FC<CallQueueProps> = ({
         ) : null;
     };
 
+    const renderError = (error: string | undefined) => {
+        if (!error) return '-';
+        const truncatedError = error.length > 20 ? `${error.substring(0, 20)}...` : error;
+        return (
+            <span className="relative group">
+                {truncatedError}
+                {error.length > 20 && (
+                    <span className="absolute left-0 z-10 hidden p-2 text-xs text-white bg-black rounded-md group-hover:block" style={{ whiteSpace: 'normal', maxWidth: '200px', top: '-100%', transform: 'translateY(-100%)' }}>
+                        {error}
+                    </span>
+                )}
+            </span>
+        );
+    };
+
     return (
         <div className="bg-white rounded-lg shadow-sm">
             <div className="p-4 border-b">
@@ -99,6 +114,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Duration</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Start Time</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">End Time</th>
+                            <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Error</th>
                             <th className="py-3 px-4 text-left text-xs font-medium text-gray-500">Actions</th>
                         </tr>
                     </thead>
@@ -121,6 +137,9 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                 </td>
                                 <td className="py-3 px-4 text-sm">
                                     {item.attempt?.endTime ? formatTimestamp(item.attempt.endTime) : '-'}
+                                </td>
+                                <td className="py-3 px-4 text-sm">
+                                    {renderError(item.attempt?.error)}
                                 </td>
                                 <td className="py-3 px-4">
                                     <button

@@ -25,9 +25,9 @@ export const fetchCallDetails = async (apiBaseUrl: string, callSid: string): Pro
   }
 };
 
-export const isCandidateInCall = async (candidatePhone: string): Promise<{ success: boolean, isInCall: boolean }> => {
+export const isCandidateInCall = async (candidatePhone: string): Promise<{ isInCall: boolean , message:string }> => {
   try {
-    const response = await axios.get<{ success: boolean, isInCall: boolean }>(`./IsCandidateInCall`, { params: { candidatePhone } });
+    const response = await axios.get<{ isInCall: boolean, message:string }>(`./IsCandidateInCall`, { params: { candidatePhone } });
     return response.data;
   } catch (error) {
     console.error('Error checking if candidate is in a call:', error);
