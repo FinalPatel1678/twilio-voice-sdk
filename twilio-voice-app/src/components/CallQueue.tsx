@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { CandidateNumber, CallDetailLoading } from '../types/call.types';
 import LoadingSpinner from './LoadingSpinner';
 
 // Add type safety for status values
-type CallStatus = 'success' | 'voicemail' | 'no-answer' | 'busy' | 'failed' | 
+type CallStatus = 'success' | 'voicemail' | 'no-answer' | 'busy' | 'failed' |
     'canceled' | 'rejected' | 'invalid-number' | 'error';
 type QueueStatus = 'completed' | 'in-progress' | 'failed' | 'pending';
 
@@ -82,16 +82,21 @@ const CallQueue: React.FC<CallQueueProps> = ({
         ) : null;
     };
 
-    const renderError = (error: string | undefined) => {
-        if (!error) return '-';
+    const RenderError: React.FC<{ error?: string }> = ({ error }) => {
+        const [showFullError, setShowFullError] = useState(false);
+        if (!error) return <span>-</span>;
+
         const truncatedError = error.length > 20 ? `${error.substring(0, 20)}...` : error;
         return (
-            <span className="relative group">
-                {truncatedError}
+            <span className="text-red-600 font-medium text-xs">
+                {showFullError ? error : truncatedError}
                 {error.length > 20 && (
-                    <span className="absolute left-0 z-10 hidden p-2 text-xs text-white bg-black rounded-md group-hover:block" style={{ whiteSpace: 'normal', maxWidth: '200px', top: '-100%', transform: 'translateY(-100%)' }}>
-                        {error}
-                    </span>
+                    <button
+                        onClick={() => setShowFullError(!showFullError)}
+                        className="ml-2 text-blue-600 underline hover:no-underline text-xs"
+                    >
+                        {showFullError ? 'See less' : 'See more'}
+                    </button>
                 )}
             </span>
         );
@@ -128,9 +133,9 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                 <td className="py-3 px-4 text-sm font-medium">{item.name || '-'}</td>
                                 <td className="py-3 px-4 text-sm font-medium">{item.number}</td>
                                 <td className="py-3 px-4">{renderQueueStatus(item)}</td>
-                                <td className="py-3 px-4">{renderCallStatus(item, index)}</td>
+                                <td className="py-3 px-4">{renderCallStatus(item, index) || '-'}</td>
                                 <td className="py-3 px-4 text-sm">
-                                    {item.attempt?.duration && formatDuration(item.attempt.duration)}
+                                    {item.attempt?.duration ? formatDuration(item.attempt.duration) : '-'}
                                 </td>
                                 <td className="py-3 px-4 text-sm">
                                     {item.attempt?.answerTime ? formatTimestamp(item.attempt.answerTime) : '-'}
@@ -139,7 +144,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                     {item.attempt?.endTime ? formatTimestamp(item.attempt.endTime) : '-'}
                                 </td>
                                 <td className="py-3 px-4 text-sm">
-                                    {renderError(item.attempt?.error)}
+                                    <RenderError error={item.attempt?.error} />
                                 </td>
                                 <td className="py-3 px-4">
                                     <button
