@@ -35,6 +35,38 @@ export const isCandidateInCall = async (candidatePhone: string): Promise<{ isInC
   }
 };
 
+export const startCall = async (
+  cleanNumber: string,
+  userId: string,
+  reqId: string,
+  callerId: string,
+  jobTitleText: string,
+  userName: string,
+  candidateName: string = '',
+  selectionId: string = '',
+  companyId: string,
+  multipleSelectionId: string = ''
+): Promise<void> => {
+  try {
+   const response = await axios.post('./StartCall', {
+        To: cleanNumber,
+        userId,
+        reqId,
+        callerId,
+        jobTitleText,
+        userName,
+        candidateName,
+        selectionId,
+        companyId,
+        multipleSelectionId
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error starting call:', error);
+    throw error;
+  }
+}; 
 
 
 

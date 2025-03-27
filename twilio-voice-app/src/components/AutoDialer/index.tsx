@@ -1,6 +1,6 @@
 import React, { useEffect, } from 'react';
 import { Call, Device } from '@twilio/voice-sdk';
-import { fetchCallDetails, getAccessToken, isCandidateInCall } from '../../services/twilioService';
+import { fetchCallDetails, getAccessToken, isCandidateInCall, startCall } from '../../services/twilioService';
 import LocalStorageManager from '../../services/localStorageManager';
 import StatusBar from '../StatusBar';
 import ManualDialer from '../ManualDialer';
@@ -106,6 +106,68 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         };
     }, [activeCall, callStartTime]);
 
+    const handleIncomingCall = (call: Call, cleanNumber?: string) => {
+        logger.info('Incoming call received', { callSid: call.parameters.CallSid });
+
+        // Automatically accept the call
+        call.accept();
+
+        // Update UI state
+        setActiveCall(call);
+        const startTime = Date.now();
+
+        call.on('accept', () => {
+            logger.info('Call accepted', {
+                callSid: call.parameters.CallSid,
+                timestamp: new Date().toISOString(),
+                mediaStatus: call.status()
+            });
+            if (cleanNumber) setPhoneNumber(cleanNumber);
+            handleCallConnect(call);
+            setIsMuted(false);
+        });
+
+        call.on('mute', (isMuted) => {
+            setIsMuted(isMuted);
+        });
+
+        call.on('disconnect', async () => {
+            const callSid = call.parameters.CallSid;
+            const duration = Date.now() - startTime;
+            logger.info('Call disconnected', {
+                callSid: callSid,
+                duration,
+                finalStatus: call.status(),
+                autoDialState: {
+                    isActive: autoDialState.isActive,
+                    currentIndex: autoDialState.currentIndex
+                }
+            });
+
+            // Don't reset call states immediately for auto-dial
+            if (autoDialState.isActive && autoDialState.currentIndex !== undefined) {
+                await handleCallSuccess(callSid, autoDialState.currentIndex, duration);
+            }
+            handleCallDisconnect();
+        });
+
+        call.on('error', (error) => {
+            logger.error('Call error occurred:', {
+                error,
+                callSid: call.parameters.CallSid,
+                isAutoDial: autoDialState.isActive
+            });
+
+            handleCallDisconnect();
+
+            if (autoDialState.isActive && autoDialState.currentIndex !== undefined) {
+                handleCallError(error, autoDialState.currentIndex);
+            } else {
+                setErrorMessage(`Call failed: ${error.message || 'Unknown error'}`);
+            }
+        });
+    };
+
     const initializeDevice = async () => {
         if (!isInitialized) {
             logger.info('Initializing Twilio device...', { isInitialized, isDeviceReady });
@@ -128,7 +190,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 });
 
                 const newDevice = new Device(tokenData.token, {
-                    edge: 'ashburn',
                     closeProtection: 'You have an active call. Leaving or reloading this page will disconnect the call. Are you sure you want to continue?',
                     logLevel: 4,
                 });
@@ -161,7 +222,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     });
                     handleCallDisconnect();
                 });
-
+                newDevice.on("incoming", handleIncomingCall); // Listen for incoming calls
                 newDevice.on('error', handleDeviceError);
             } catch (error: any) {
                 logger.error('Device initialization failed:', {
@@ -217,15 +278,11 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         return phoneRegex.test(cleanNumber);
     };
 
-    const makeCall = async (phoneNumber: string, name?: string, selectionId?: string, multipleSelectionId?: string, options?: {
-        isAutoDial?: boolean,
-        index?: number,
-    }) => {
+    const makeCall = async (phoneNumber: string, name?: string, selectionId?: string, multipleSelectionId?: string) => {
         // Prevent multiple simultaneous call attempts
         if (isInitiatingCall) {
             logger.warn('Call initiation blocked - already in progress', {
                 phoneNumber,
-                options,
                 currentState: { isOnCall, userState }
             });
             return;
@@ -234,7 +291,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         setIsInitiatingCall(true);
         logger.info('Initiating call', {
             phoneNumber,
-            options,
             deviceState: {
                 ready: isDeviceReady,
                 userState,
@@ -243,7 +299,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         });
 
         try {
-            logger.info('Attempting to make call', { phoneNumber, options });
+            logger.info('Attempting to make call', { phoneNumber });
 
             if (!device || !isDeviceReady) {
                 logger.error('Device not ready for call');
@@ -263,91 +319,20 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 throw new Error(message || 'Candidate is already in a call with another recruiter');
             }
 
-            try {
-                logger.debug('Connecting call...', {
-                    to: cleanNumber,
-                    deviceStatus: device?.state,
-                    userState
-                });
+            const response = await startCall(cleanNumber, userId, reqId, callerId, jobTitleText, userName, name, selectionId, companyId, multipleSelectionId);
+            logger.info('Backend call initiation successful', { response });
 
-                const call = await device.connect({
-                    params: { To: cleanNumber, userId: userId, reqId: reqId, callerId: callerId, jobTitleText, userName, candidateName: name || '', selectionId: selectionId || '', companyId: companyId, multipleSelectionId: multipleSelectionId || '' }
-                });
-
-                logger.info('Call connection initiated', {
-                    callSid: call.parameters.CallSid,
-                    status: call.status(),
-                    direction: call.direction
-                });
-
-                setActiveCall(call);
-                const startTime = Date.now();
-
-                call.on('accept', () => {
-                    logger.info('Call accepted', {
-                        callSid: call.parameters.CallSid,
-                        timestamp: new Date().toISOString(),
-                        mediaStatus: call.status()
-                    });
-                    setPhoneNumber(cleanNumber);
-                    handleCallConnect(call);
-                    setIsMuted(false);
-                });
-
-                call.on('mute', (isMuted) => {
-                    setIsMuted(isMuted);
-                });
-
-                call.on('disconnect', async () => {
-                    const callSid = call.parameters.CallSid;
-                    const duration = Date.now() - startTime;
-                    logger.info('Call disconnected', {
-                        callSid: callSid,
-                        duration,
-                        finalStatus: call.status(),
-                        autoDialState: {
-                            isActive: autoDialState.isActive,
-                            currentIndex: autoDialState.currentIndex
-                        }
-                    });
-
-                    // Don't reset call states immediately for auto-dial
-                    if (options?.isAutoDial && options.index !== undefined) {
-                        await handleCallSuccess(callSid, options.index, duration);
-                    }
-                    handleCallDisconnect();
-
-                });
-
-                call.on('error', (error) => {
-                    logger.error('Call error occurred:', {
-                        error,
-                        callSid: call.parameters.CallSid,
-                        isAutoDial: options?.isAutoDial
-                    });
-
-                    handleCallDisconnect();
-
-                    if (options?.isAutoDial && options.index !== undefined) {
-                        handleCallError(error, options.index);
-                    } else {
-                        setErrorMessage(`Call failed: ${error.message || 'Unknown error'}`);
-                    }
-                });
-
-                return call;
-            } catch (error: any) {
-                logger.error('Error during call connection:', {
-                    error,
-                    phoneNumber,
-                    deviceState: device?.state,
-                    userState
-                });
-                if (options?.isAutoDial && options.index !== undefined) {
-                    handleCallError(error, options.index);
-                } else {
-                    setErrorMessage(error.message || 'Unknown error');
-                }
+        } catch (error: any) {
+            logger.error('Error during backend call initiation:', {
+                error,
+                phoneNumber,
+                deviceState: device?.state,
+                userState
+            });
+            if (autoDialState.isActive && autoDialState.currentIndex !== undefined) {
+                handleCallError(error, autoDialState.currentIndex);
+            } else {
+                setErrorMessage(error.message || 'Unknown error');
             }
         } finally {
             setIsInitiatingCall(false);
@@ -666,10 +651,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             processingCandidates.add(currentNumber.id);
 
             try {
-                await makeCall(currentNumber.number, currentNumber.name, currentNumber.selectionId, currentNumber.multipleSelectionId, {
-                    isAutoDial: true,
-                    index: currentIndex
-                });
+                await makeCall(currentNumber.number, currentNumber.name, currentNumber.selectionId, currentNumber.multipleSelectionId);
             } catch (error: any) {
                 setErrorMessage(`Failed to make call: ${error.message || 'Unknown error'}`);
                 // Remove from processing set on error
