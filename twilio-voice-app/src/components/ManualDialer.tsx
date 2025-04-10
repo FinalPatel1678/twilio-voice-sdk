@@ -40,18 +40,16 @@ const ManualDialer: React.FC<ManualDialerProps> = ({
                 <input
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg text-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     value={phoneNumber}
-                    onChange={(e) => onPhoneNumberChange(e.target.value)}
-                    placeholder={isDeviceReady ? "Enter phone number" : "Initializing..."}
-                    disabled={!isDeviceReady || !!activeCall || isLoading}
+                    placeholder="Manual dialing is disabled"
+                    disabled={true} // Disable the input field
                 />
 
                 <div className="grid grid-cols-3 gap-3">
                     {numberList.map((value) => (
                         <button
                             key={value}
-                            onClick={() => handleNumberClick(value)}
-                            disabled={!isDeviceReady || !!activeCall || isLoading}
-                            className="h-12 rounded-md bg-gray-50 hover:bg-gray-100 text-gray-700 text-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={true} // Disable all buttons
+                            className="h-12 rounded-md bg-gray-50 text-gray-400 text-lg font-medium cursor-not-allowed"
                         >
                             {value}
                         </button>

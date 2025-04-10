@@ -23,6 +23,15 @@ const CallQueue: React.FC<CallQueueProps> = ({
     isAutoDialActive,
     onRemoveNumber
 }) => {
+    const [expandedErrors, setExpandedErrors] = useState<Record<number, boolean>>({});
+
+    const toggleErrorExpansion = (index: number) => {
+        setExpandedErrors((prev) => ({
+            ...prev,
+            [index]: !prev[index],
+        }));
+    };
+
     const getCallStatusColor = (status: CallStatus) => {
         const colorMap: Record<CallStatus, string> = {
             'success': 'bg-green-100 text-green-800',
@@ -82,17 +91,18 @@ const CallQueue: React.FC<CallQueueProps> = ({
         ) : null;
     };
 
-    const RenderError: React.FC<{ error?: string }> = ({ error }) => {
-        const [showFullError, setShowFullError] = useState(false);
+    const RenderError: React.FC<{ error?: string; index: number }> = ({ error, index }) => {
         if (!error) return <span>-</span>;
 
+        const showFullError = expandedErrors[index] || false;
         const truncatedError = error.length > 20 ? `${error.substring(0, 20)}...` : error;
+
         return (
-            <span className="text-red-600 font-medium text-xs">
+            <span className="text-red-600 font-medium text-sm">
                 {showFullError ? error : truncatedError}
                 {error.length > 20 && (
                     <button
-                        onClick={() => setShowFullError(!showFullError)}
+                        onClick={() => toggleErrorExpansion(index)}
                         className="ml-2 text-blue-600 underline hover:no-underline text-xs"
                     >
                         {showFullError ? 'See less' : 'See more'}
@@ -144,7 +154,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                     {item.attempt?.endTime ? formatTimestamp(item.attempt.endTime) : '-'}
                                 </td>
                                 <td className="py-3 px-4 text-sm">
-                                    <RenderError error={item.attempt?.error} />
+                                    <RenderError error={item.attempt?.error} index={index} />
                                 </td>
                                 <td className="py-3 px-4">
                                     <button
