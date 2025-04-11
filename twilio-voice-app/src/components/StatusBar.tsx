@@ -9,7 +9,11 @@ interface StatusBarProps {
     phoneNumber: string;
     isMuted: boolean;
     elapsedTime: number;
+    isLoading: boolean;
+    isDeviceReady: boolean;
     onToggleMute: () => void;
+    onCall: () => void;
+    onHangUp: () => void;
 }
 
 const StatusBar: React.FC<StatusBarProps> = ({
@@ -18,7 +22,11 @@ const StatusBar: React.FC<StatusBarProps> = ({
     phoneNumber,
     isMuted,
     elapsedTime,
-    onToggleMute
+    isLoading,
+    isDeviceReady,
+    onToggleMute,
+    onCall,
+    onHangUp
 }) => {
     const getStateColor = (state: string) => {
         switch (state) {
@@ -39,31 +47,44 @@ const StatusBar: React.FC<StatusBarProps> = ({
     return (
         <div className="bg-white rounded-lg shadow-sm p-4">
             <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center gap-x-4">
                     <div className="flex items-center gap-2">
                         <div className={`w-3 h-3 rounded-full ${getStateColor(userState)}`} />
                         <span className="text-lg font-medium text-gray-700">{userState}</span>
                     </div>
                     {activeCall && (
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-x-2">
                             <span className="text-gray-500">Current call:</span>
                             <span className="font-mono text-lg">{phoneNumber}</span>
                         </div>
                     )}
                 </div>
                 {activeCall && (
-                    <div className="flex items-center space-x-3">
-                        <div className="text-lg font-mono bg-gray-100 px-3 py-1 rounded-md">
-                            {formatElapsedTime(elapsedTime)}
-                        </div>
+                    <div className="flex items-center gap-x-3">
+                        {elapsedTime ? (
+                            <div className="text-lg font-mono bg-gray-100 px-3 py-1 rounded-md">
+                                {formatElapsedTime(elapsedTime)}
+                            </div>
+                        ) : null}
                         <button
                             onClick={onToggleMute}
                             className={`p-2.5 rounded-full transition-colors ${isMuted ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-600'}`}
                         >
                             {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                         </button>
+                        <button
+                            onClick={activeCall ? onHangUp : onCall}
+                            disabled={!isDeviceReady || isLoading || (!phoneNumber && !activeCall)}
+                            className={`max-w-[100px] py-2 px-4 rounded-lg font-medium text-white text-base transition-colors
+                            ${activeCall ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}
+                            disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                            {isLoading ? 'Connecting...' : activeCall ? 'End Call' : 'Call'}
+                        </button>
                     </div>
                 )}
+
+
             </div>
         </div>
     );
