@@ -708,6 +708,8 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         setCandidateNumbers(prev => prev.filter((_, i) => i !== index));
     };
 
+    const remainingCalls = candidateNumbers.filter((num) => num.status !== 'completed' && num.status !== 'failed').length;
+
     return (
         <div className="min-h-screen bg-gray-100 p-4">
             <div className="max-w-7xl mx-auto space-y-4">
@@ -760,17 +762,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 )}
 
                 <div className="grid grid-cols-12 gap-4">
-                    {/* Manual Dialer */}
-                    {/* <ManualDialer
-                        phoneNumber={phoneNumber}
-                        isDeviceReady={isDeviceReady}
-                        activeCall={activeCall}
-                        isLoading={isLoading}
-                        onPhoneNumberChange={setPhoneNumber}
-                        onCall={handleCall}
-                        onHangUp={handleHangUp}
-                    /> */}
-
                     <div className="col-span-12 space-y-4">
                         {/* Auto Dial Controls */}
                         <AutoDialControls
@@ -778,6 +769,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                             isDeviceReady={isDeviceReady}
                             activeCall={!!activeCall}
                             totalNumbers={candidateNumbers.length}
+                            remainingCalls={remainingCalls} // Pass remaining calls
                             onStart={startAutoDial}
                             onPause={pauseAutoDial}
                             onResume={resumeAutoDial}
