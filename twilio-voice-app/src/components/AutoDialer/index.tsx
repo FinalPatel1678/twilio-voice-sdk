@@ -452,7 +452,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         }
     };
 
-    const updateTestNumberStatus = (index: number, status: CandidateNumber['status'], attempt?: CallAttempt) => {
+    const updateNumberStatus = (index: number, status: CandidateNumber['status'], attempt?: CallAttempt) => {
         setCandidateNumbers(prev => {
             const updated = [...prev];
             updated[index] = {
@@ -488,7 +488,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             attempts: 1
         };
 
-        updateTestNumberStatus(index, 'in-progress', attempt);
+        updateNumberStatus(index, 'in-progress', attempt);
 
         try {
             if (callSid) {
@@ -520,7 +520,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     error: callDetails.error,
                 };
 
-                updateTestNumberStatus(index, 'completed', finalAttempt);
+                updateNumberStatus(index, 'completed', finalAttempt);
 
                 // Show summary modal for successful human-answered calls only
                 if (callStatus === 'success') {
@@ -540,7 +540,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 status: 'error',
                 error: 'Failed to fetch call details'
             };
-            updateTestNumberStatus(index, 'failed', errorAttempt);
+            updateNumberStatus(index, 'failed', errorAttempt);
 
             resetCallStates();
             if (autoDialState.isActive) {

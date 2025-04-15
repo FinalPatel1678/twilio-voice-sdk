@@ -159,7 +159,10 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                 <td className="py-3 px-4">
                                     <button
                                         onClick={() => onRemoveNumber(index)}
-                                        disabled={isAutoDialActive && index <= currentIndex}
+                                        disabled={
+                                            (isAutoDialActive && index <= currentIndex) || // Disable for processed numbers during auto-dial
+                                            (index === currentIndex && candidateNumbers[index]?.status === 'in-progress') // Disable if the current call is in progress
+                                        }
                                         className="p-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
                                     >
                                         <X className="w-4 h-4" />
