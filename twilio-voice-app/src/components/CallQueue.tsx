@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { CandidateNumber, CallDetailLoading } from '../types/call.types';
 import LoadingSpinner from './LoadingSpinner';
+import { Call } from '@twilio/voice-sdk';
 
 // Add type safety for status values
 type CallStatus = 'success' | 'voicemail' | 'no-answer' | 'busy' | 'failed' |
@@ -13,6 +14,7 @@ interface CallQueueProps {
     currentIndex: number;
     callDetailLoading: CallDetailLoading | null;
     isAutoDialActive: boolean;
+    activeCall: Call | null;
     onRemoveNumber: (index: number) => void;
 }
 
@@ -21,6 +23,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
     currentIndex,
     callDetailLoading,
     isAutoDialActive,
+    activeCall,
     onRemoveNumber
 }) => {
     const [expandedErrors, setExpandedErrors] = useState<Record<number, boolean>>({});
@@ -161,7 +164,8 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                         onClick={() => onRemoveNumber(index)}
                                         disabled={
                                             (isAutoDialActive && index <= currentIndex) || // Disable for processed numbers during auto-dial
-                                            (index === currentIndex && candidateNumbers[index]?.status === 'in-progress') // Disable if the current call is in progress
+                                            (index === currentIndex && candidateNumbers[index]?.status === 'in-progress') || // Disable if the current call is in progress
+                                            !!activeCall // Disable if there is an active call
                                         }
                                         className="p-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
                                     >

@@ -421,7 +421,8 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             return updated;
         });
 
-        setAutoDialState(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }));
+        setAutoDialState(prev => ({ ...prev, isPaused: true }));
+        setErrorMessage(`Call failed: ${error.message || 'Unknown error'}`);
     };
 
     const resetCallStates = () => {
@@ -782,6 +783,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                             currentIndex={autoDialState.currentIndex}
                             callDetailLoading={callDetailLoading}
                             isAutoDialActive={autoDialState.isActive}
+                            activeCall={activeCall}
                             onRemoveNumber={removeNumberFromQueue}
                         />
                     </div>
