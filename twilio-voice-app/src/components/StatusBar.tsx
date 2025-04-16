@@ -12,7 +12,6 @@ interface StatusBarProps {
     isLoading: boolean;
     isDeviceReady: boolean;
     onToggleMute: () => void;
-    onCall: () => void;
     onHangUp: () => void;
 }
 
@@ -25,7 +24,6 @@ const StatusBar: React.FC<StatusBarProps> = ({
     isLoading,
     isDeviceReady,
     onToggleMute,
-    onCall,
     onHangUp
 }) => {
     const getStateColor = (state: string) => {
@@ -73,13 +71,13 @@ const StatusBar: React.FC<StatusBarProps> = ({
                             {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                         </button>
                         <button
-                            onClick={activeCall ? onHangUp : onCall}
+                            onClick={onHangUp}
                             disabled={!isDeviceReady || isLoading || (!phoneNumber && !activeCall)}
                             className={`max-w-[100px] py-2 px-4 rounded-lg font-medium text-white text-base transition-colors
                             ${activeCall ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}
                             disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
-                            {isLoading ? 'Connecting...' : activeCall ? 'End Call' : 'Call'}
+                            {isLoading ? 'Connecting...' : 'End Call'}
                         </button>
                     </div>
                 )}

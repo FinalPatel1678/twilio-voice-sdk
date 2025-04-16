@@ -3,7 +3,6 @@ import { Call, Device } from '@twilio/voice-sdk';
 import { fetchCallDetails, getAccessToken, isCandidateInCall } from '../../services/twilioService';
 import LocalStorageManager from '../../services/localStorageManager';
 import StatusBar from '../StatusBar';
-import ManualDialer from '../ManualDialer';
 import AutoDialControls from '../AutoDialControls';
 import CallQueue from '../CallQueue';
 import ErrorDisplay from '../ErrorDisplay';
@@ -217,15 +216,11 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         return phoneRegex.test(cleanNumber);
     };
 
-    const makeCall = async (phoneNumber: string, name?: string, selectionId?: string, multipleSelectionId?: string, options?: {
-        isAutoDial?: boolean,
-        index?: number,
-    }) => {
+    const makeCall = async (phoneNumber: string, name?: string, selectionId?: string, multipleSelectionId?: string) => {
         // Prevent multiple simultaneous call attempts
         if (isInitiatingCall) {
             logger.warn('Call initiation blocked - already in progress', {
                 phoneNumber,
-                options,
                 currentState: { isOnCall, userState }
             });
             return;
@@ -234,7 +229,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         setIsInitiatingCall(true);
         logger.info('Initiating call', {
             phoneNumber,
-            options,
             deviceState: {
                 ready: isDeviceReady,
                 userState,
@@ -242,8 +236,10 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             }
         });
 
+        const currentIndex = autoDialState.currentIndex;
+
         try {
-            logger.info('Attempting to make call', { phoneNumber, options });
+            logger.info('Attempting to make call', { phoneNumber });
 
             if (!device || !isDeviceReady) {
                 logger.error('Device not ready for call');
@@ -287,9 +283,19 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 call.on('accept', () => {
                     logger.info('Call accepted', {
                         callSid: call.parameters.CallSid,
-                        timestamp: new Date().toISOString(),
                         mediaStatus: call.status()
                     });
+                    if (currentIndex !== undefined) {
+                        setCandidateNumbers(prev => {
+                            const updated = [...prev];
+                            updated[currentIndex] = {
+                                ...updated[currentIndex],
+                                attempt: { status: 'in-progress' }
+                            };
+                            return updated;
+                        });
+                    }
+
                     handleCallConnect(call);
                     setIsMuted(false);
                 });
@@ -312,8 +318,8 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     });
 
                     // Don't reset call states immediately for auto-dial
-                    if (options?.isAutoDial && options.index !== undefined) {
-                        await handleCallSuccess(callSid, options.index, duration);
+                    if (currentIndex !== undefined) {
+                        await handleCallSuccess(callSid, currentIndex, duration);
                     }
                     handleCallDisconnect();
 
@@ -323,13 +329,12 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     logger.error('Call error occurred:', {
                         error,
                         callSid: call.parameters.CallSid,
-                        isAutoDial: options?.isAutoDial
                     });
 
                     handleCallDisconnect();
 
-                    if (options?.isAutoDial && options.index !== undefined) {
-                        handleCallError(error, options.index);
+                    if (currentIndex !== undefined) {
+                        handleCallError(error, currentIndex);
                     } else {
                         setErrorMessage(`Call failed: ${error.message || 'Unknown error'}`);
                     }
@@ -343,8 +348,9 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     deviceState: device?.state,
                     userState
                 });
-                if (options?.isAutoDial && options.index !== undefined) {
-                    handleCallError(error, options.index);
+
+                if (currentIndex !== undefined) {
+                    handleCallError(error, currentIndex);
                 } else {
                     setErrorMessage(error.message || 'Unknown error');
                 }
@@ -355,27 +361,27 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
     };
 
     // Simplified handleCall for manual dialing
-    const handleCall = async () => {
-        setErrors({});
+    // const handleCall = async () => {
+    //     setErrors({});
 
-        if (isLoading || isOnCall) {
-            return;
-        }
+    //     if (isLoading || isOnCall) {
+    //         return;
+    //     }
 
-        setIsLoading(true);
-        setErrorMessage('');
+    //     setIsLoading(true);
+    //     setErrorMessage('');
 
-        try {
-            await makeCall(phoneNumber);
-        } catch (error: any) {
-            console.error('Error making call:', error);
-            setErrorMessage(`Failed to make call: ${error.message || 'Unknown error'}`);
-            setUserState(USER_STATE.READY);
-            setIsOnCall(false);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    //     try {
+    //         await makeCall(phoneNumber);
+    //     } catch (error: any) {
+    //         console.error('Error making call:', error);
+    //         setErrorMessage(`Failed to make call: ${error.message || 'Unknown error'}`);
+    //         setUserState(USER_STATE.READY);
+    //         setIsOnCall(false);
+    //     } finally {
+    //         setIsLoading(false);
+    //     }
+    // };
 
     // Modify toggleMute to work with auto-dialing
     const toggleMute = () => {
@@ -409,11 +415,10 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             const updated = [...prev];
             updated[index] = {
                 ...updated[index],
-                status: 'failed',
+                status: 'queue-failed',
                 lastError: error.message,
                 attempt:
                 {
-                    timestamp: Date.now(),
                     status: 'failed',
                     error: error.message
                 }
@@ -480,16 +485,15 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
 
         // Set initial attempt data
         const attempt: CallAttempt = {
-            timestamp: startTime,
             duration,
-            status: 'success',
+            status: 'completed',
             callSid,
             answerTime: startTime,
             endTime: Date.now(),
             attempts: 1
         };
 
-        updateNumberStatus(index, 'in-progress', attempt);
+        updateNumberStatus(index, 'queue-processing', attempt);
 
         try {
             if (callSid) {
@@ -501,17 +505,11 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 const callDetails = await fetchCallDetails(apiBaseUrl, callSid);
 
                 // Enhanced call status determination
-                let callStatus: CallAttempt['status'] = 'success';
-                if (callDetails.status === 'no-answer') {
-                    callStatus = 'no-answer';
-                } else if (callDetails.status === 'busy') {
-                    callStatus = 'busy';
-                } else if (callDetails.status === 'failed') {
-                    callStatus = 'failed';
-                } else if (callDetails.status === 'canceled') {
-                    callStatus = 'canceled';
-                } else if (callDetails.answered_by?.includes('machine')) {
+                let callStatus: CallAttempt['status'];
+                if (callDetails.answered_by?.includes('machine')) {
                     callStatus = 'voicemail';
+                } else {
+                    callStatus = callDetails.status;
                 }
 
                 // Update attempt with final status and details
@@ -521,10 +519,10 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     error: callDetails.error,
                 };
 
-                updateNumberStatus(index, 'completed', finalAttempt);
+                updateNumberStatus(index, 'queue-completed', finalAttempt);
 
                 // Show summary modal for successful human-answered calls only
-                if (callStatus === 'success') {
+                if (callStatus === 'completed') {
                     window.triggerCallDetailsModal(currentNumber.selectionId)
                     setShowSummaryModal(true);
                 } else {
@@ -541,7 +539,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 status: 'error',
                 error: 'Failed to fetch call details'
             };
-            updateNumberStatus(index, 'failed', errorAttempt);
+            updateNumberStatus(index, 'queue-failed', errorAttempt);
 
             resetCallStates();
             if (autoDialState.isActive) {
@@ -561,9 +559,9 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         }
 
         // Reset all numbers to pending state
-        const resetNumbers = candidateNumbers.map(num => ({
+        const resetNumbers: CandidateNumber[] = candidateNumbers.map(num => ({
             ...num,
-            status: 'pending' as const,
+            status: 'queue-pending',
             lastError: undefined
         }));
 
@@ -658,7 +656,8 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 const updated = [...prev];
                 updated[currentIndex] = {
                     ...updated[currentIndex],
-                    status: 'in-progress'
+                    status: 'queue-processing',
+                    attempt: { status: 'initiated' }
                 };
                 return updated;
             });
@@ -667,10 +666,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             processingCandidates.add(currentNumber.id);
 
             try {
-                await makeCall(currentNumber.number, currentNumber.name, currentNumber.selectionId, currentNumber.multipleSelectionId, {
-                    isAutoDial: true,
-                    index: currentIndex
-                });
+                await makeCall(currentNumber.number, currentNumber.name, currentNumber.selectionId, currentNumber.multipleSelectionId);
             } catch (error: any) {
                 setErrorMessage(`Failed to make call: ${error.message || 'Unknown error'}`);
                 // Remove from processing set on error
@@ -709,7 +705,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         setCandidateNumbers(prev => prev.filter((_, i) => i !== index));
     };
 
-    const remainingCalls = candidateNumbers.filter((num) => num.status !== 'completed' && num.status !== 'failed').length;
+    const remainingCalls = candidateNumbers.filter((num) => num.status !== 'queue-completed' && num.status !== 'queue-failed').length;
 
     return (
         <div className="min-h-screen bg-gray-100 p-4">
@@ -724,7 +720,6 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     isDeviceReady={isDeviceReady}
                     isLoading={isLoading}
                     onToggleMute={toggleMute}
-                    onCall={handleCall}
                     onHangUp={handleHangUp}
                 />
 
@@ -770,11 +765,11 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                             isDeviceReady={isDeviceReady}
                             activeCall={!!activeCall}
                             totalNumbers={candidateNumbers.length}
-                            remainingCalls={remainingCalls} // Pass remaining calls
-                            onStart={startAutoDial}
-                            onPause={pauseAutoDial}
-                            onResume={resumeAutoDial}
-                            onStop={stopAutoDial}
+                            remainingCalls={remainingCalls}
+                            onStart={isInitiatingCall ? undefined : startAutoDial} // Disable if initiating a call
+                            onPause={isInitiatingCall ? undefined : pauseAutoDial} // Disable if initiating a call
+                            onResume={isInitiatingCall ? undefined : resumeAutoDial} // Disable if initiating a call
+                            onStop={isInitiatingCall ? undefined : stopAutoDial} // Disable if initiating a call
                         />
 
                         {/* Call Queue */}

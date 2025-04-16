@@ -1,6 +1,8 @@
+export type CallStatus = 'initiated' | 'completed' | 'voicemail' | 'no-answer' | 'busy' | 'failed' |
+    'canceled' | 'rejected' | 'error' | 'ringing' | 'in-progress'
+
 export interface CallAttempt {
-    timestamp: number;
-    status: string;
+    status: CallStatus;
     duration?: number;
     callSid?: string;
     error?: string;
@@ -9,13 +11,15 @@ export interface CallAttempt {
     attempts?: number;
 }
 
+export type QueueStatus = 'queue-completed' | 'queue-processing' | 'queue-failed' | 'queue-pending';
+
 export interface CandidateNumber {
-    id:string,
+    id: string,
     number: string;
-    name:string,
-    selectionId:string,
-    multipleSelectionId:string,
-    status: 'pending' | 'in-progress' | 'completed' | 'failed';
+    name: string,
+    selectionId: string,
+    multipleSelectionId: string,
+    status: QueueStatus;
     attempt?: CallAttempt;
     lastError?: string;
 }

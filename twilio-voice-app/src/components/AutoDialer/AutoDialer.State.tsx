@@ -30,7 +30,7 @@ const useAutoDialerState = ({ localStorageManager, candidates }: { localStorageM
         name: `${candidate.FirstName} ${candidate.LastName}`.trim(),
         selectionId: candidate.SelectionID,
         multipleSelectionId: candidate.MultipleSelectionID,
-        status: 'pending'
+        status: 'queue-pending'
     })));
     const [autoDialState, setAutoDialState] = useState<AutoDialState>({
         isActive: false,

@@ -1,13 +1,8 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
-import { CandidateNumber, CallDetailLoading } from '../types/call.types';
+import { CandidateNumber, CallDetailLoading, CallStatus, QueueStatus } from '../types/call.types';
 import LoadingSpinner from './LoadingSpinner';
 import { Call } from '@twilio/voice-sdk';
-
-// Add type safety for status values
-type CallStatus = 'success' | 'voicemail' | 'no-answer' | 'busy' | 'failed' |
-    'canceled' | 'rejected' | 'invalid-number' | 'error';
-type QueueStatus = 'completed' | 'in-progress' | 'failed' | 'pending';
 
 interface CallQueueProps {
     candidateNumbers: CandidateNumber[];
@@ -37,25 +32,28 @@ const CallQueue: React.FC<CallQueueProps> = ({
 
     const getCallStatusColor = (status: CallStatus) => {
         const colorMap: Record<CallStatus, string> = {
-            'success': 'bg-green-100 text-green-800',
+            'initiated': 'bg-gray-100 text-gray-800',
+            'completed': 'bg-green-100 text-green-800',
             'voicemail': 'bg-yellow-100 text-yellow-800',
             'no-answer': 'bg-orange-100 text-orange-800',
             'busy': 'bg-purple-100 text-purple-800',
             'failed': 'bg-red-100 text-red-800',
-            'canceled': 'bg-gray-100 text-gray-800',
-            'rejected': 'bg-red-100 text-red-800',
-            'invalid-number': 'bg-red-100 text-red-800',
-            'error': 'bg-red-100 text-red-800'
+            'canceled': 'bg-gray-200 text-gray-700',
+            'rejected': 'bg-red-200 text-red-800',
+            'error': 'bg-red-300 text-red-900',
+            'ringing': 'bg-blue-100 text-blue-800',
+            'in-progress': 'bg-blue-200 text-blue-900'
         };
+
         return colorMap[status] || 'bg-gray-100 text-gray-800';
     };
 
     const getQueueStatusColor = (status: QueueStatus) => {
         const colorMap: Record<QueueStatus, string> = {
-            'completed': 'bg-green-100 text-green-800',
-            'in-progress': 'bg-blue-100 text-blue-800',
-            'failed': 'bg-red-100 text-red-800',
-            'pending': 'bg-gray-100 text-gray-800'
+            'queue-completed': 'bg-green-100 text-green-800',
+            'queue-processing': 'bg-blue-100 text-blue-800',
+            'queue-failed': 'bg-red-100 text-red-800',
+            'queue-pending': 'bg-gray-100 text-gray-800'
         };
         return colorMap[status] || 'bg-gray-100 text-gray-800';
     };
@@ -137,10 +135,11 @@ const CallQueue: React.FC<CallQueueProps> = ({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {candidateNumbers.map((item, index) => (
+                        {candidateNumbers.map((item, index) =>
+                        (
                             <tr
                                 key={item.id}
-                                className={`${index === currentIndex ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                                className={`${index === currentIndex ? 'bg-blue-50 font-bold' : 'hover:bg-gray-50'}`}
                             >
                                 <td className="py-3 px-4 text-sm">{index + 1}</td>
                                 <td className="py-3 px-4 text-sm font-medium">{item.name || '-'}</td>
@@ -164,7 +163,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                         onClick={() => onRemoveNumber(index)}
                                         disabled={
                                             (isAutoDialActive && index <= currentIndex) || // Disable for processed numbers during auto-dial
-                                            (index === currentIndex && candidateNumbers[index]?.status === 'in-progress') || // Disable if the current call is in progress
+                                            (index === currentIndex && candidateNumbers[index]?.status === 'queue-processing') || // Disable if the current call is in progress
                                             !!activeCall // Disable if there is an active call
                                         }
                                         className="p-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
