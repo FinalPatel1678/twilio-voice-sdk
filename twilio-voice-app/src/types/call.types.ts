@@ -11,7 +11,7 @@ export interface CallAttempt {
     attempts?: number;
 }
 
-export type QueueStatus = 'queue-completed' | 'queue-processing' | 'queue-failed' | 'queue-pending';
+export type QueueStatus = 'finalized' | 'processing' | 'error' | 'waiting';
 
 export interface CandidateNumber {
     id: string,

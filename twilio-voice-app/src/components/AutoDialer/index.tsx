@@ -415,7 +415,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             const updated = [...prev];
             updated[index] = {
                 ...updated[index],
-                status: 'queue-failed',
+                status: 'error',
                 lastError: error.message,
                 attempt:
                 {
@@ -493,7 +493,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             attempts: 1
         };
 
-        updateNumberStatus(index, 'queue-processing', attempt);
+        updateNumberStatus(index, 'processing', attempt);
 
         try {
             if (callSid) {
@@ -519,7 +519,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                     error: callDetails.error,
                 };
 
-                updateNumberStatus(index, 'queue-completed', finalAttempt);
+                updateNumberStatus(index, 'finalized', finalAttempt);
 
                 // Show summary modal for successful human-answered calls only
                 if (callStatus === 'completed') {
@@ -539,7 +539,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 status: 'error',
                 error: 'Failed to fetch call details'
             };
-            updateNumberStatus(index, 'queue-failed', errorAttempt);
+            updateNumberStatus(index, 'error', errorAttempt);
 
             resetCallStates();
             if (autoDialState.isActive) {
@@ -561,7 +561,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         // Reset all numbers to pending state
         const resetNumbers: CandidateNumber[] = candidateNumbers.map(num => ({
             ...num,
-            status: 'queue-pending',
+            status: 'waiting',
             lastError: undefined
         }));
 
@@ -656,7 +656,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
                 const updated = [...prev];
                 updated[currentIndex] = {
                     ...updated[currentIndex],
-                    status: 'queue-processing',
+                    status: 'processing',
                     attempt: { status: 'initiated' }
                 };
                 return updated;
@@ -705,7 +705,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
         setCandidateNumbers(prev => prev.filter((_, i) => i !== index));
     };
 
-    const remainingCalls = candidateNumbers.filter((num) => num.status !== 'queue-completed' && num.status !== 'queue-failed').length;
+    const remainingCalls = candidateNumbers.filter((num) => num.status !== 'finalized' && num.status !== 'error').length;
 
     return (
         <div className="min-h-screen bg-gray-100 p-4">

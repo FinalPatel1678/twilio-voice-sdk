@@ -32,7 +32,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
 
     const getCallStatusColor = (status: CallStatus) => {
         const colorMap: Record<CallStatus, string> = {
-            'initiated': 'bg-gray-100 text-gray-800',
+            'initiated': 'bg-blue-100 text-blue-800',
             'completed': 'bg-green-100 text-green-800',
             'voicemail': 'bg-yellow-100 text-yellow-800',
             'no-answer': 'bg-orange-100 text-orange-800',
@@ -50,10 +50,10 @@ const CallQueue: React.FC<CallQueueProps> = ({
 
     const getQueueStatusColor = (status: QueueStatus) => {
         const colorMap: Record<QueueStatus, string> = {
-            'queue-completed': 'bg-green-100 text-green-800',
-            'queue-processing': 'bg-blue-100 text-blue-800',
-            'queue-failed': 'bg-red-100 text-red-800',
-            'queue-pending': 'bg-gray-100 text-gray-800'
+            'finalized': 'bg-green-100 text-green-800',
+            'processing': 'bg-blue-100 text-blue-800',
+            'error': 'bg-red-100 text-red-800',
+            'waiting': 'bg-gray-100 text-gray-800'
         };
         return colorMap[status] || 'bg-gray-100 text-gray-800';
     };
@@ -163,7 +163,7 @@ const CallQueue: React.FC<CallQueueProps> = ({
                                         onClick={() => onRemoveNumber(index)}
                                         disabled={
                                             (isAutoDialActive && index <= currentIndex) || // Disable for processed numbers during auto-dial
-                                            (index === currentIndex && candidateNumbers[index]?.status === 'queue-processing') || // Disable if the current call is in progress
+                                            (index === currentIndex && candidateNumbers[index]?.status === 'processing') || // Disable if the current call is in progress
                                             !!activeCall // Disable if there is an active call
                                         }
                                         className="p-1 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
