@@ -41,25 +41,27 @@ const AutoDialControls: React.FC<AutoDialControlsProps> = ({
                             </div>
                         </div>
                         <div className="flex gap-3">
-                            <button
+                            {onStart && <button
                                 onClick={onStart}
                                 disabled={!onStart || !isDeviceReady || autoDialState.isActive || activeCall || totalNumbers === 0}
                                 className="px-4 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-green-500 transition-colors"
                             >
                                 Start Auto-Dial
-                            </button>
+                            </button>}
+
                             {autoDialState.isActive && (
                                 <>
                                     {autoDialState.isPaused ? (
-                                        <button
+                                        onResume && (<button
                                             onClick={onResume}
                                             disabled={!onResume}
                                             className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 transition-colors"
                                         >
                                             Resume
-                                        </button>
+                                        </button>)
+
                                     ) : (
-                                        <button
+                                        onPause && <button
                                             onClick={onPause}
                                             disabled={!onPause}
                                             className="px-4 py-2 bg-yellow-500 text-white rounded-md text-sm font-medium hover:bg-yellow-600 transition-colors"
@@ -67,13 +69,14 @@ const AutoDialControls: React.FC<AutoDialControlsProps> = ({
                                             Pause
                                         </button>
                                     )}
-                                    <button
+                                    {onStop && <button
                                         onClick={onStop}
                                         disabled={!onStop}
                                         className="px-4 py-2 bg-red-500 text-white rounded-md text-sm font-medium hover:bg-red-600 transition-colors"
                                     >
                                         Stop
                                     </button>
+                                    }
                                 </>
                             )}
                         </div>

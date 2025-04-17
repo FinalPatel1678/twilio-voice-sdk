@@ -426,7 +426,7 @@ const AutoDialer: React.FC<AutoDialerProps> = ({ apiBaseUrl, candidates, userId,
             return updated;
         });
 
-        setAutoDialState(prev => ({ ...prev, isPaused: true }));
+        setAutoDialState(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }));
         setErrorMessage(`Call failed: ${error.message || 'Unknown error'}`);
     };
 
